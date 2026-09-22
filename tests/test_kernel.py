@@ -1,4 +1,4 @@
-"""TUBEWALK kernel tests. Catalog freeze. Scorer idle."""
+"""TUBEWALK kernel tests. Catalog freeze. W1 scores catalog ok. Not a walk."""
 
 from __future__ import annotations
 

@@ -6,4 +6,4 @@ Two published tubes: Mare Tranquillitatis west Mini-RF conduit (Carrer et al. 20
 
 A tube is the walk beyond the mouth. A bag is a goal you enter. Mini-RF SAR is not LRS sounding. GRAIL mass deficit is not n_invalid / n_cells.
 
-W0 freezes the catalog. W1 ports tube.py.
+W0 freezes the catalog. W1 ports tube.py. Catalog scores ok. ok is not a walk. Mini-RF Stokes and LRS tanδ are named, not scored.

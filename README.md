@@ -13,8 +13,9 @@ A radar echo looks like a cave you can walk. Name the conduit against echo, widt
 ## Wave freeze
 
 - W0 catalog: Mare Tranquillitatis west Mini-RF conduit (Carrer 2024) and Marius Hills LRS rille (Kaku 2017). tube.py named, not run.
+- W1 tube scorer: tube.py ported. Dark first. Catalog scores ok. Mini-RF Stokes named, not scored. LRS tanδ named, not scored.
 
-W1 tube scorer waits.
+W2 one bad tube demonstration waits.
 
 ## tube.py
 
