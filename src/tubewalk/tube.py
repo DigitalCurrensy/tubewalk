@@ -20,9 +20,11 @@ def walk(
 ) -> str:
     if echo is None or echo == "none":
         return "dark"
-    if width_m is not None and width_m < 10:
+    if width_m is None or length_m is None:
+        return "missing"
+    if width_m < 10:
         return "pinch"
-    if length_m is not None and length_m < 30:
+    if length_m < 30:
         return "stub"
     if clutter:
         return "clutter"

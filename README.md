@@ -15,12 +15,13 @@ A name for that conduit, or a refusal. ok is not a keep. GRAIL is not this catal
 `walk(width_m, length_m, echo, clutter)` returns the first hit, in this order:
 
 1. **dark** — `echo` is missing, or `echo` is the string `none`.
-2. **pinch** — `width_m` is present and `width_m < 10`.
-3. **stub** — `length_m` is present and `length_m < 30`.
-4. **clutter** — `clutter` is true.
-5. **ok** — none of the above.
+2. **missing** — `width_m` is missing or `length_m` is missing. A blank is not a measurement. It is not ok.
+3. **pinch** — `width_m < 10`.
+4. **stub** — `length_m < 30`.
+5. **clutter** — `clutter` is true.
+6. **ok** — none of the above.
 
-A blank numeric cell is missing. It is the same branch `walk()` already uses for `None`: a missing width is not a pinch, and a missing length is not a stub. Later checks still run. ok is not a keep. A radar line is not a ceiling.
+A missing width is still not a pinch. It is missing. A missing length is still not a stub. It is missing.
 
 ## Worked rows
 

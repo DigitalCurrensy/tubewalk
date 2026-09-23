@@ -40,8 +40,8 @@ class WalkTests(unittest.TestCase):
         self.assertEqual(walk(45, 80, "conduit", True), "clutter")
         self.assertEqual(walk(45, 30, "conduit", False), "ok")
         self.assertEqual(walk(10, 30, "second", False), "ok")
-        self.assertEqual(walk(None, 50_000, "second", False), "ok")
-        self.assertEqual(walk(45, None, "conduit", False), "ok")
+        self.assertEqual(walk(None, 50_000, "second", False), "missing")
+        self.assertEqual(walk(45, None, "conduit", False), "missing")
 
     def test_named_catalog_is_not_a_fetched_survey(self) -> None:
         self.assertEqual(MTP["id"], "TUBE-MTP-WEST")
@@ -64,7 +64,7 @@ class WalkTests(unittest.TestCase):
         )
         self.assertEqual(
             walk(MHP["width_m"], MHP["length_m"], MHP["echo"], MHP["clutter"]),
-            "ok",
+            "missing",
         )
 
     def test_grail_not_this_catalog(self) -> None:
@@ -79,7 +79,7 @@ class Wave2Tests(unittest.TestCase):
     def test_published_ok_is_not_a_walk(self) -> None:
         self.assertEqual(MTP_WALK["id"], "TUBE-MTP-WEST")
         self.assertEqual(score_published(), "ok")
-        self.assertEqual(score_mhp(), "ok")
+        self.assertEqual(score_mhp(), "missing")
         self.assertFalse(MTP_WALK["raysar_run"])
         self.assertFalse(MTP_WALK["grail_is_radar"])
         self.assertEqual(round(lunar_offset_m((8.3355, 33.222), (8.336, 33.222))), 15)
@@ -199,8 +199,8 @@ class CsvMissingTests(unittest.TestCase):
         )
         self.assertEqual(blank_width, walk(None, 80.0, "conduit", False))
         self.assertEqual(blank_length, walk(45.0, None, "conduit", False))
-        self.assertEqual(blank_width, "ok")
-        self.assertEqual(blank_length, "ok")
+        self.assertEqual(blank_width, "missing")
+        self.assertEqual(blank_length, "missing")
 
 
 if __name__ == "__main__":
