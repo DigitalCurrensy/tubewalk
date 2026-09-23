@@ -34,7 +34,25 @@ A non-finite coordinate is dropped. ASPRS class 7, low-point noise, is dropped. 
 ok points=4 dropped=1 width=12 length=40 echo=return clutter=false
 ```
 
-This is not a ground filter, a centerline, a fitted cylinder, or a LAS reader. Classification, a cloth filter, and a mesh are different programs.
+## Cloth
+
+`python -m tubewalk cloth examples/ground.csv` is the cloth simulation filter of Zhang and others (2016), without the slope post-process. The cloud is inverted, so the low ground becomes the high surface. A grid falls with the Verlet step `pos + (pos - old) * (1 - 0.01) - 0.2 * 0.65²`. A particle that passes the cell height sticks. A free neighbor is pulled to that height. A point within 0.5 of the cloth is ground. The spike at `(1, 1, 10)` is not:
+
+```
+ground=8 other=1 resolution=1 threshold=0.5
+```
+
+## Centerline
+
+`python -m tubewalk section examples/tube.csv` does not use the bounding box. The centerline is the long horizontal axis. Each 1 m station with at least three points gets one algebraic circle in the `(offset, z)` plane. The width is the median diameter. The length is the extent along the centerline. The worked tube runs along Y, so the box treats 12 m as the length and says `stub`. The circle does not:
+
+```
+ok sections=2 points=8 dropped=0 width=12 length=40 echo=return clutter=false
+```
+
+## LAS 1.2
+
+`python -m tubewalk las file.las` reads ASPRS LAS 1.2, point format 0 or 1. The file starts with `LASF`. Version bytes are at 24 and 25. The header size, point offset, format, record length, and count are at byte 94. Scales are three doubles at byte 131. Offsets are three doubles at byte 155. A coordinate is `integer * scale + offset`. The return number is the low 3 bits of point byte 14. The class is the low 5 bits of point byte 15. Formats 0 and 1 only. LAZ is compressed and is not read. Class 7 is dropped, then the same circle is fit. A file that is not this LAS raises `not a las`, `not las 1.2`, or `not this las`.
 
 ## Worked rows
 
@@ -45,8 +63,8 @@ This is not a ground filter, a centerline, a fitted cylinder, or a LAS reader. C
 - Treat ok as a keep.
 - Treat GRAIL as this catalog.
 - Treat a radar line as a ceiling.
-- Read a LAS or LAZ file.
-- Fit a centerline or a cylinder to the points.
+- Read a LAS or LAZ file other than LAS 1.2 point format 0 or 1.
+- Fit a centerline to a cloud whose stations have fewer than three points.
 
 ## Run
 
@@ -54,6 +72,8 @@ This is not a ground filter, a centerline, a fitted cylinder, or a LAS reader. C
 PYTHONPATH=src python -m unittest tests.test_kernel
 PYTHONPATH=src python -m tubewalk examples/conduit.csv
 PYTHONPATH=src python -m tubewalk lidar examples/cloud.csv
+PYTHONPATH=src python -m tubewalk cloth examples/ground.csv
+PYTHONPATH=src python -m tubewalk section examples/tube.csv
 ```
 
 Copyright 2026 Digital Currensy Inc. Apache-2.0.

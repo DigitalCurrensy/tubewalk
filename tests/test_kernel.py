@@ -333,5 +333,90 @@ class CloudSpanTests(unittest.TestCase):
         )
 
 
+class ClothAndSectionTests(unittest.TestCase):
+    def test_spike_is_not_ground_and_the_circle_is_not_the_box(self) -> None:
+        import subprocess
+
+        repo = Path(__file__).resolve().parents[1]
+        env = {**__import__("os").environ, "PYTHONPATH": str(repo / "src")}
+
+        def run(args: list[str]) -> str:
+            proc = subprocess.run(
+                [sys.executable, "-m", "tubewalk", *args],
+                cwd=repo, env=env, capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            return proc.stdout.strip()
+
+        self.assertEqual(run(["cloth", str(repo / "examples" / "ground.csv")]), "ground=8 other=1 resolution=1 threshold=0.5")
+        self.assertEqual(
+            run(["lidar", str(repo / "examples" / "tube.csv")]),
+            "stub points=8 dropped=0 width=40 length=12 echo=return clutter=false",
+        )
+        self.assertEqual(
+            run(["section", str(repo / "examples" / "tube.csv")]),
+            "ok sections=2 points=8 dropped=0 width=12 length=40 echo=return clutter=false",
+        )
+
+    def test_las_12_format_0_round_trip(self) -> None:
+        import struct
+        import tempfile
+
+        from tubewalk.las import read_las
+
+        scale = 0.001
+        tube = [(6, 0, 0, 1, 2), (-6, 0, 0, 1, 2), (0, 0, 6, 1, 2), (0, 0, -6, 1, 2),
+                (6, 40, 0, 1, 2), (-6, 40, 0, 1, 2), (0, 40, 6, 1, 2), (0, 40, -6, 1, 2),
+                (0, 20, 100, 1, 7)]
+        header = bytearray(227)
+        header[0:4] = b"LASF"
+        header[24] = 1
+        header[25] = 2
+        struct.pack_into("<H", header, 94, 227)
+        struct.pack_into("<I", header, 96, 227)
+        struct.pack_into("<I", header, 100, 0)
+        header[104] = 0
+        struct.pack_into("<H", header, 105, 20)
+        struct.pack_into("<I", header, 107, len(tube))
+        struct.pack_into("<3d", header, 131, scale, scale, scale)
+        body = bytearray()
+        for x, y, z, ret, klass in tube:
+            body += struct.pack(
+                "<3iHBBbBH",
+                int(round(x / scale)), int(round(y / scale)), int(round(z / scale)),
+                0, ret, klass, 0, 0, 0,
+            )
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "tube.las"
+            path.write_bytes(bytes(header) + bytes(body))
+            got = read_las(path)
+            self.assertEqual(len(got), 9)
+            self.assertEqual(got[-1][4], 7)
+            self.assertAlmostEqual(got[0][0], 6.0, places=6)
+            repo = Path(__file__).resolve().parents[1]
+            proc = subprocess_run(path, repo)
+            bad = path.with_name("bad.las")
+            bad.write_bytes(b"not a las file")
+            with self.assertRaises(ValueError):
+                read_las(bad)
+        self.assertEqual(
+            proc,
+            "ok sections=2 points=8 dropped=0 width=12 length=40 echo=return clutter=false",
+        )
+
+
+def subprocess_run(path: Path, repo: Path) -> str:
+    import subprocess
+    proc = subprocess.run(
+        [sys.executable, "-m", "tubewalk", "las", str(path)],
+        cwd=repo,
+        env={**__import__("os").environ, "PYTHONPATH": str(repo / "src")},
+        capture_output=True, text=True, check=False,
+    )
+    if proc.returncode != 0:
+        raise AssertionError(proc.stderr)
+    return proc.stdout.strip()
+
+
 if __name__ == "__main__":
     unittest.main()

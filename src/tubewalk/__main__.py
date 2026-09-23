@@ -21,7 +21,10 @@ import math
 import sys
 from pathlib import Path
 
+from .cloth import cloth_line
+from .las import read_las
 from .lidar import cloud_line, reduce_cloud
+from .section import section_line, section_score
 from .tube import walk
 
 COLUMNS = ("width_m", "length_m", "echo", "clutter")
@@ -85,8 +88,17 @@ def main(argv: list[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
     if len(args) == 2 and args[0] == "lidar":
         return _lidar(Path(args[1]))
+    if len(args) == 2 and args[0] == "cloth":
+        return _print_points(Path(args[1]), "cloth")
+    if len(args) == 2 and args[0] == "section":
+        return _print_points(Path(args[1]), "section")
+    if len(args) == 2 and args[0] == "las":
+        return _las(Path(args[1]))
     if len(args) != 1:
-        print("usage: python -m tubewalk <csv> | python -m tubewalk lidar <cloud.csv>", file=sys.stderr)
+        print(
+            "usage: python -m tubewalk <csv> | lidar <cloud.csv> | cloth <cloud.csv> | section <cloud.csv> | las <file.las>",
+            file=sys.stderr,
+        )
         return 2
     path = Path(args[0])
     with path.open(newline="", encoding="utf-8") as handle:
@@ -129,6 +141,46 @@ def _lidar(path: Path) -> int:
             return 2
         rows = [{key.strip(): value for key, value in row.items() if key} for row in reader]
     print(cloud_line(reduce_cloud(rows)))
+    return 0
+
+
+def _rows(path: Path) -> list[tuple[float, float, float]] | None:
+    with path.open(newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        names = [name.strip() for name in (reader.fieldnames or [])]
+        if names[:3] != ["x", "y", "z"]:
+            print("csv columns must start with x,y,z", file=sys.stderr)
+            return None
+        points = []
+        for row in reader:
+            if all(not (value or "").strip() for value in row.values()):
+                continue
+            try:
+                points.append((float(row["x"]), float(row["y"]), float(row["z"])))
+            except (TypeError, ValueError):
+                points.append((float("nan"), float("nan"), float("nan")))
+        return points
+
+
+def _print_points(path: Path, kind: str) -> int:
+    points = _rows(path)
+    if points is None:
+        return 2
+    if kind == "cloth":
+        print(cloth_line(points))
+    else:
+        print(section_line(section_score(points)))
+    return 0
+
+
+def _las(path: Path) -> int:
+    try:
+        raw = read_las(path)
+    except ValueError as exc:
+        print(exc, file=sys.stderr)
+        return 2
+    kept = [(x, y, z) for x, y, z, _ret, klass in raw if klass != 7]
+    print(section_line(section_score(kept)))
     return 0
 
 
