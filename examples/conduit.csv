@@ -1,0 +1,10 @@
+width_m,length_m,echo,clutter
+45,30,conduit,false
+,50000,second,false
+45,,conduit,false
+,10,conduit,false
+5,80,conduit,false
+45,10,conduit,false
+45,80,conduit,true
+45,80,none,false
+5,10,none,true

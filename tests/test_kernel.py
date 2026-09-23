@@ -187,5 +187,21 @@ class Wave4Tests(unittest.TestCase):
         self.assertIn("fringe is not a conduit", paper["body"])
 
 
+class CsvMissingTests(unittest.TestCase):
+    def test_blank_numeric_uses_none_branch(self) -> None:
+        from tubewalk.__main__ import score_row
+
+        blank_width = score_row(
+            {"width_m": "", "length_m": "80", "echo": "conduit", "clutter": "false"}
+        )
+        blank_length = score_row(
+            {"width_m": "45", "length_m": "", "echo": "conduit", "clutter": "false"}
+        )
+        self.assertEqual(blank_width, walk(None, 80.0, "conduit", False))
+        self.assertEqual(blank_length, walk(45.0, None, "conduit", False))
+        self.assertEqual(blank_width, "ok")
+        self.assertEqual(blank_length, "ok")
+
+
 if __name__ == "__main__":
     unittest.main()

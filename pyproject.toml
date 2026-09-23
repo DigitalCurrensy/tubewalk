@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tubewalk"
+version = "0.1.0"
+description = "Name a conduit from width, length, echo, and clutter. A radar line is not a ceiling."
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Digital Currensy Inc." }]
+dependencies = []
+
+[tool.setuptools.packages.find]
+where = ["src"]
