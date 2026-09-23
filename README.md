@@ -4,8 +4,6 @@ For a radar reader who sees a bright line and wants to call it a tunnel.
 
 **Owner:** Digital Currensy Inc.
 **License:** Apache-2.0. Our code only. Cited data and papers stay with their authors.
-**Status:** Private until the owner publishes it.
-
 ## What it decides
 
 A named conduit, or a refusal. A shape check that returns ok is not a keep.

@@ -43,6 +43,9 @@ GRAIL = {
     "name": "GRAIL rille A deficit",
     "this_catalog": False,
     "is_radar": False,
+    "degree": 1200,
+    "cannot_resolve_m": 45,
+    "fetched": False,
 }
 
 CAPELLA = {

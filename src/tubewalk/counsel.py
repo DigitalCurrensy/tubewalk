@@ -5,7 +5,7 @@ from __future__ import annotations
 from .letter import SAR_SIM, compile_letter
 
 TITLE = "TUBE COUNSEL PASS"
-OFFER = "radar conduit letter $6k–$14k. Not an invoice."
+OFFER = "Unsigned. Not an invoice."
 COUNSEL = "unsigned"
 WORD_CAP = 80
 
@@ -145,7 +145,7 @@ def compile_counsel(kind: str) -> dict:
     body = (
         "TUBE COUNSEL PASS. Research tool. Not a certificate. Not survey-grade. "
         "TUBE-MTP-WEST still OK. ok is not a walk. Counsel unsigned. "
-        "Engineer of record unsigned. Offer $6k–$14k."
+        "Engineer of record unsigned."
     )
     return {
         **base,

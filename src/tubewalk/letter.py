@@ -7,7 +7,7 @@ from .tubes import MTP
 from .walk import MTP_WALK
 
 TITLE = "TUBE LETTER"
-OFFER = "radar conduit letter $6k–$14k. Not an invoice."
+OFFER = "Unsigned. Not an invoice."
 COUNSEL = "unsigned"
 WORD_CAP = 80
 BOUNCE_NEED = 3

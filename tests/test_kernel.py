@@ -1,4 +1,4 @@
-"""TUBEWALK kernel tests. Catalog freeze. W1 scores catalog ok. W2 walks MTP. Not a walk."""
+"""TUBEWALK kernel tests. Ok is not a walk."""
 
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ class WalkTests(unittest.TestCase):
         self.assertEqual(walk(None, 50_000, "second", False), "ok")
         self.assertEqual(walk(45, None, "conduit", False), "ok")
 
-    def test_catalog_named_not_scored_as_wave0_verdict(self) -> None:
+    def test_named_catalog_is_not_a_fetched_survey(self) -> None:
         self.assertEqual(MTP["id"], "TUBE-MTP-WEST")
         self.assertEqual(MTP["lat"], 8.3355)
         self.assertEqual(MTP["lon"], 33.222)
