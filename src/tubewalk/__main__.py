@@ -21,6 +21,7 @@ import math
 import sys
 from pathlib import Path
 
+from .lidar import cloud_line, reduce_cloud
 from .tube import walk
 
 COLUMNS = ("width_m", "length_m", "echo", "clutter")
@@ -82,8 +83,10 @@ def score_row(row: dict[str, str | None]) -> str:
 
 def main(argv: list[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
+    if len(args) == 2 and args[0] == "lidar":
+        return _lidar(Path(args[1]))
     if len(args) != 1:
-        print("usage: python -m tubewalk <csv>", file=sys.stderr)
+        print("usage: python -m tubewalk <csv> | python -m tubewalk lidar <cloud.csv>", file=sys.stderr)
         return 2
     path = Path(args[0])
     with path.open(newline="", encoding="utf-8") as handle:
@@ -114,6 +117,18 @@ def main(argv: list[str] | None = None) -> int:
                 f"{word} width={_show(width)} length={_show(length)} "
                 f"echo={echo_text} clutter={'true' if clutter else 'false'}"
             )
+    return 0
+
+
+def _lidar(path: Path) -> int:
+    with path.open(newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        names = [name.strip() for name in (reader.fieldnames or [])]
+        if names not in (["x", "y", "z"], ["x", "y", "z", "return"], ["x", "y", "z", "return", "class"]):
+            print("csv columns must be x,y,z or x,y,z,return,class", file=sys.stderr)
+            return 2
+        rows = [{key.strip(): value for key, value in row.items() if key} for row in reader]
+    print(cloud_line(reduce_cloud(rows)))
     return 0
 
 

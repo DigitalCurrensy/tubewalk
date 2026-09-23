@@ -278,5 +278,60 @@ class PrintedLineTests(unittest.TestCase):
         )
 
 
+class CloudSpanTests(unittest.TestCase):
+    def test_span_drops_noise_and_keeps_the_box(self) -> None:
+        from tubewalk.lidar import cloud_line, reduce_cloud
+
+        rows = [
+            {"x": "0", "y": "0", "z": "0", "return": "1", "class": "2"},
+            {"x": "40", "y": "0", "z": "0", "return": "1", "class": "2"},
+            {"x": "0", "y": "12", "z": "0", "return": "1", "class": "2"},
+            {"x": "40", "y": "12", "z": "5", "return": "1", "class": "2"},
+            {"x": "20", "y": "100", "z": "1", "return": "1", "class": "7"},
+            {"x": "nan", "y": "1", "z": "1", "return": "1", "class": "2"},
+        ]
+        scored = reduce_cloud(rows)
+        self.assertEqual(scored["word"], "ok")
+        self.assertEqual(scored["points"], 4)
+        self.assertEqual(scored["dropped"], 2)
+        self.assertEqual(scored["width"], 12)
+        self.assertEqual(scored["length"], 40)
+        self.assertFalse(scored["clutter"])
+        self.assertEqual(
+            cloud_line(scored),
+            "ok points=4 dropped=2 width=12 length=40 echo=return clutter=false",
+        )
+
+    def test_secondary_return_is_clutter_and_a_short_cloud_is_missing(self) -> None:
+        from tubewalk.lidar import reduce_cloud
+
+        cluttered = reduce_cloud(
+            [
+                {"x": "0", "y": "0", "z": "0", "return": "1"},
+                {"x": "40", "y": "12", "z": "1", "return": "2"},
+            ]
+        )
+        self.assertEqual(cluttered["word"], "clutter")
+        self.assertEqual(reduce_cloud([{"x": "1", "y": "2", "z": "3"}])["word"], "missing")
+
+    def test_example_cloud_prints_the_span(self) -> None:
+        import subprocess
+
+        repo = Path(__file__).resolve().parents[1]
+        proc = subprocess.run(
+            [sys.executable, "-m", "tubewalk", "lidar", str(repo / "examples" / "cloud.csv")],
+            cwd=repo,
+            env={**__import__("os").environ, "PYTHONPATH": str(repo / "src")},
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(
+            proc.stdout.strip(),
+            "ok points=4 dropped=1 width=12 length=40 echo=return clutter=false",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
