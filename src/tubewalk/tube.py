@@ -21,7 +21,9 @@ def walk(
     echo: str | None,
     clutter: bool,
 ) -> str:
-    if echo is None or echo == "none":
+    if not isinstance(echo, str) and echo is not None:
+        return "missing"
+    if echo is None or echo.strip().casefold() in {"", "none"}:
         return "dark"
     if width_m is None or length_m is None:
         return "missing"

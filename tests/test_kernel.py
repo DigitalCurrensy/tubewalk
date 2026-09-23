@@ -36,6 +36,10 @@ class WalkTests(unittest.TestCase):
         self.assertEqual(walk(5, 80, "conduit", False), "pinch")
         self.assertEqual(walk(45, 10, "conduit", False), "stub")
         self.assertEqual(walk(45, 80, "none", False), "dark")
+        self.assertEqual(walk(45, 80, "NONE", False), "dark")
+        self.assertEqual(walk(45, 80, "", False), "dark")
+        self.assertEqual(walk(45, 80, "  none  ", False), "dark")
+        self.assertEqual(walk(45, 80, 1, False), "missing")
         self.assertEqual(walk(None, 80, None, False), "dark")
         self.assertEqual(walk(45, 80, "conduit", True), "clutter")
         self.assertEqual(walk(45, 30, "conduit", False), "ok")
@@ -95,6 +99,8 @@ class Wave2Tests(unittest.TestCase):
         self.assertFalse(MTP_WALK["raysar_run"])
         self.assertFalse(MTP_WALK["grail_is_radar"])
         self.assertEqual(round(lunar_offset_m((8.3355, 33.222), (8.336, 33.222))), 15)
+        with self.assertRaises(ValueError):
+            lunar_offset_m((float("nan"), 33.222), (8.336, 33.222))
 
     def test_raysar_named_not_run(self) -> None:
         self.assertEqual(RAYSAR["name"], "RaySAR")
@@ -196,6 +202,8 @@ class Wave4Tests(unittest.TestCase):
         self.assertEqual(INSAR["transmitter_failed"], "2010-12-26")
         self.assertEqual(fringe_los_m(0.126), 0.063)
         self.assertIsNone(fringe_los_m(0.0))
+        self.assertIsNone(fringe_los_m(float("nan")))
+        self.assertIsNone(fringe_los_m(float("inf")))
         self.assertIn("fringe is not a conduit", paper["body"])
 
 
@@ -235,6 +243,38 @@ class PrintedLineTests(unittest.TestCase):
         self.assertEqual(
             proc.stdout.splitlines()[0],
             "ok width=45 length=30 echo=conduit clutter=false",
+        )
+
+    def test_bad_cells_print_missing(self) -> None:
+        import subprocess
+        import tempfile
+
+        repo = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "bad.csv"
+            path.write_text(
+                "width_m,length_m,echo,clutter\n"
+                "abc,80,conduit,false\n"
+                "45,80,conduit,maybe\n"
+                "45,80,NONE,false\n",
+                encoding="utf-8",
+            )
+            proc = subprocess.run(
+                [sys.executable, "-m", "tubewalk", str(path)],
+                cwd=repo,
+                env={**__import__("os").environ, "PYTHONPATH": str(repo / "src")},
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(
+            proc.stdout.splitlines(),
+            [
+                "missing width=bad length=80 echo=conduit clutter=false",
+                "missing width=45 length=80 echo=conduit clutter=bad",
+                "dark width=45 length=80 echo=NONE clutter=false",
+            ],
         )
 
 

@@ -66,6 +66,10 @@ GRAIL_INV = {
 
 
 def lunar_offset_m(a: tuple[float, float], b: tuple[float, float]) -> float:
+    for point in (a, b):
+        for value in point:
+            if not math.isfinite(value):
+                raise ValueError("bad number")
     to_r = math.pi / 180.0
     p1, p2 = a[0] * to_r, b[0] * to_r
     dp = (b[0] - a[0]) * to_r

@@ -16,6 +16,8 @@
 
 from __future__ import annotations
 
+import math
+
 from .letter import SAR_SIM, compile_letter
 
 TITLE = "TUBE COUNSEL PASS"
@@ -64,7 +66,7 @@ def geometric_optics_valid(wavelength_m: float, scale_m: float) -> bool:
 
 
 def fringe_los_m(wavelength_m: float) -> float | None:
-    if wavelength_m != wavelength_m or not (wavelength_m > 0):
+    if not math.isfinite(wavelength_m) or not (wavelength_m > 0):
         return None
     return wavelength_m / 2.0
 

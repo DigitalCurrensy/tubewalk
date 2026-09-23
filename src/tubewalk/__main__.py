@@ -36,7 +36,10 @@ def _cell(row: dict[str, str | None], name: str) -> str:
 def _optional_float(text: str) -> float | None:
     if text == "":
         return None
-    return float(text)
+    try:
+        return float(text)
+    except ValueError:
+        return float("nan")
 
 
 def _optional_text(text: str) -> str | None:
@@ -53,7 +56,7 @@ def _bool(text: str) -> bool:
         return True
     if lowered in {"false", "no", "n", "0"}:
         return False
-    raise ValueError(f"not a boolean: {text}")
+    return None
 
 
 
@@ -66,11 +69,14 @@ def _show(value: float | None) -> str:
 
 
 def score_row(row: dict[str, str | None]) -> str:
+    clutter = _bool(_cell(row, "clutter"))
+    if clutter is None:
+        return "missing"
     return walk(
         _optional_float(_cell(row, "width_m")),
         _optional_float(_cell(row, "length_m")),
         _optional_text(_cell(row, "echo")),
-        _bool(_cell(row, "clutter")),
+        clutter,
     )
 
 
@@ -96,8 +102,14 @@ def main(argv: list[str] | None = None) -> int:
             length = _optional_float(_cell(row, "length_m"))
             echo = _optional_text(_cell(row, "echo"))
             clutter = _bool(_cell(row, "clutter"))
-            word = walk(width, length, echo, clutter)
             echo_text = "missing" if echo is None else echo
+            if clutter is None:
+                print(
+                    f"missing width={_show(width)} length={_show(length)} "
+                    f"echo={echo_text} clutter=bad"
+                )
+                continue
+            word = walk(width, length, echo, clutter)
             print(
                 f"{word} width={_show(width)} length={_show(length)} "
                 f"echo={echo_text} clutter={'true' if clutter else 'false'}"
