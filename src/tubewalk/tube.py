@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import math
+
+
 def walk(
     width_m: float | None,
     length_m: float | None,
@@ -21,6 +24,8 @@ def walk(
     if echo is None or echo == "none":
         return "dark"
     if width_m is None or length_m is None:
+        return "missing"
+    if not math.isfinite(width_m) or not math.isfinite(length_m):
         return "missing"
     if width_m < 0 or length_m < 0:
         return "missing"

@@ -215,5 +215,11 @@ class CsvMissingTests(unittest.TestCase):
         self.assertEqual(blank_length, "missing")
 
 
+
+class FiniteTubeTests(unittest.TestCase):
+    def test_non_finite_is_missing(self) -> None:
+        self.assertEqual(walk(float("nan"), 80.0, "conduit", False), "missing")
+
+
 if __name__ == "__main__":
     unittest.main()

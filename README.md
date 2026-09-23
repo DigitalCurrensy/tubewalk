@@ -22,7 +22,7 @@ A name for that conduit, or a refusal. ok is not a keep. GRAIL is not this catal
 6. **clutter** — `clutter` is true.
 7. **ok** — none of the above.
 
-A missing width is still not a pinch. It is missing. A missing length is still not a stub. It is missing. A negative width or length is missing. Zero is a number.
+A missing width is still not a pinch. It is missing. A missing length is still not a stub. It is missing. A negative width or length is missing. A non-finite width or length is missing. Zero is a number.
 
 ## Worked rows
 
