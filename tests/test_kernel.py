@@ -221,5 +221,22 @@ class FiniteTubeTests(unittest.TestCase):
         self.assertEqual(walk(float("nan"), 80.0, "conduit", False), "missing")
 
 
+
+class PrintedLineTests(unittest.TestCase):
+    def test_inputs_are_on_the_line(self) -> None:
+        import subprocess
+        repo = Path(__file__).resolve().parents[1]
+        proc = subprocess.run(
+            [sys.executable, "-m", "tubewalk", str(repo / "examples" / "conduit.csv")],
+            cwd=repo, env={**__import__("os").environ, "PYTHONPATH": str(repo / "src")},
+            capture_output=True, text=True, check=False,
+        )
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(
+            proc.stdout.splitlines()[0],
+            "ok width=45 length=30 echo=conduit clutter=false",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

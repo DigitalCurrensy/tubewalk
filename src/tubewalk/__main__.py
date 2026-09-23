@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import csv
+import math
 import sys
 from pathlib import Path
 
@@ -55,6 +56,15 @@ def _bool(text: str) -> bool:
     raise ValueError(f"not a boolean: {text}")
 
 
+
+def _show(value: float | None) -> str:
+    if value is None:
+        return "missing"
+    if not math.isfinite(value):
+        return "bad"
+    return f"{value:.10g}"
+
+
 def score_row(row: dict[str, str | None]) -> str:
     return walk(
         _optional_float(_cell(row, "width_m")),
@@ -82,7 +92,16 @@ def main(argv: list[str] | None = None) -> int:
         for row in reader:
             if all(not (value or "").strip() for value in row.values()):
                 continue
-            print(score_row(row))
+            width = _optional_float(_cell(row, "width_m"))
+            length = _optional_float(_cell(row, "length_m"))
+            echo = _optional_text(_cell(row, "echo"))
+            clutter = _bool(_cell(row, "clutter"))
+            word = walk(width, length, echo, clutter)
+            echo_text = "missing" if echo is None else echo
+            print(
+                f"{word} width={_show(width)} length={_show(length)} "
+                f"echo={echo_text} clutter={'true' if clutter else 'false'}"
+            )
     return 0
 
 
