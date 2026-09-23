@@ -1,21 +1,22 @@
 # TUBEWALK
 
-TUBEWALK names a radar conduit. A bright line on a radargram is not a ceiling, and it is not a cave you can walk.
+For a radar reader who sees a bright line and wants to call it a tunnel.
 
 **Owner:** Digital Currensy Inc.
-**License:** Apache-2.0. Our code only. Cited radar papers stay with their authors.
+**License:** Apache-2.0. Our code only. Cited data and papers stay with their authors.
+**Status:** Private until the owner publishes it.
 
 ## What it decides
 
-A named conduit, or a refusal. An `ok` from the shape check is not a keep.
+A named conduit, or a refusal. A shape check that returns ok is not a keep.
 
 ## The rule
 
-The desk scores the walk beyond the mouth: width, pinch, darkness, a stub, clutter, a null width, and missing inputs. Gravity from another instrument is not this tube. A radar geometry that passes is still not a roof.
+The desk scores the walk past the mouth: width, pinch, darkness, a stub, clutter, and missing inputs. A radar line is not a ceiling. Gravity from another instrument is not this tube.
 
 ## Worked cases
 
-The Mare Tranquillitatis west conduit, the Marius Hills rille, and synthetic conduits in this repository. The published names are the papers’ names. The synthetic cases force one gate each. None of them is a surveyed tunnel.
+The Mare Tranquillitatis west conduit and the Marius Hills rille use the papers’ names. The synthetic conduits each force one gate. None of them is a surveyed tunnel.
 
 ## What it will not do
 
@@ -26,7 +27,9 @@ The Mare Tranquillitatis west conduit, the Marius Hills rille, and synthetic con
 ## Run
 
 ```
+git clone <this repo>
+cd tubewalk
 PYTHONPATH=src python -m unittest tests.test_kernel
 ```
 
-Notes under `docs/` are the build record. This page is the description.
+Python 3.12. No third-party packages. The test is the demo.
