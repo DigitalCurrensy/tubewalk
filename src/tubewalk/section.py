@@ -20,38 +20,11 @@ import math
 
 from .tube import walk
 
-BIN_M = 1.0
+LINK_M = 15.0
 
 
-def _axis(points: list[tuple[float, float, float]]) -> tuple[float, float]:
-    mx = sum(p[0] for p in points) / len(points)
-    my = sum(p[1] for p in points) / len(points)
-    sxx = syy = sxy = 0.0
-    for x, y, _z in points:
-        dx = x - mx
-        dy = y - my
-        sxx += dx * dx
-        syy += dy * dy
-        sxy += dx * dy
-    # Largest eigenvector of the 2x2 covariance. A tie keeps X.
-    if abs(sxy) < 1e-12 and sxx >= syy:
-        return 1.0, 0.0
-    if abs(sxy) < 1e-12:
-        return 0.0, 1.0
-    trace = sxx + syy
-    det = sxx * syy - sxy * sxy
-    disc = max(0.0, trace * trace / 4.0 - det)
-    eigen = trace / 2.0 + math.sqrt(disc)
-    vx = sxy
-    vy = eigen - sxx
-    norm = math.hypot(vx, vy)
-    if norm == 0.0:
-        return 1.0, 0.0
-    return vx / norm, vy / norm
-
-
-def circle_diameter(uv: list[tuple[float, float]]) -> float | None:
-    """Algebraic circle. Diameter is twice the mean radius. Collinear is None."""
+def circle_fit(uv: list[tuple[float, float]]) -> tuple[float, float] | None:
+    """Algebraic circle. Returns diameter and radial RMS. Collinear is None."""
     n = len(uv)
     if n < 3:
         return None
@@ -78,19 +51,31 @@ def circle_diameter(uv: list[tuple[float, float]]) -> float | None:
         return None
     uc = (d * c - b * e) / det
     vc = (a * e - b * d) / det
-    radius = 0.0
-    for u, v in uv:
-        radius += math.hypot(u - uc, v - vc)
-    return 2.0 * radius / n
+    radii = [math.hypot(u - uc, v - vc) for u, v in uv]
+    radius = sum(radii) / n
+    rms = math.sqrt(sum((item - radius) ** 2 for item in radii) / n)
+    if rms > 0.05 * (2.0 * radius):
+        return None
+    return 2.0 * radius, rms
+
+
+def circle_diameter(uv: list[tuple[float, float]]) -> float | None:
+    fitted = circle_fit(uv)
+    if fitted is None:
+        return None
+    return fitted[0]
 
 
 def section_score(points: list[tuple[float, float, float]]) -> dict[str, float | int | str | None]:
-    """Width is the median station diameter. Length is the centerline extent.
+    """Width is the median station diameter. Length is the path of the centers.
 
-    The centerline is the long axis of the horizontal coordinates. Each 1 m
-    station with at least three points gets one circle in the plane of
-    (offset, z). Stations that do not fit are skipped. No fitted station is
-    missing. Class 7 is not dropped here. A non-finite point is dropped.
+    Points whose plan positions are within 15 m are one station, so a 12 m
+    ring stays one station and the next ring, 30 m away, does not. The circle
+    is fit in that station's own cross-section. The length is the polyline
+    through the station centers, starting at the center with the smallest x.
+    A straight tube is one segment. A bend is the sum of the segments, which
+    is longer than the chord. `rms` is the largest radial residual. A residual
+    above 5% of the diameter is not a circle, and that station is skipped.
     """
     kept = [p for p in points if all(math.isfinite(v) for v in p)]
     dropped = len(points) - len(kept)
@@ -102,26 +87,56 @@ def section_score(points: list[tuple[float, float, float]]) -> dict[str, float |
             "width": None,
             "length": None,
             "sections": 0,
+            "rms": None,
         }
-    mx = sum(p[0] for p in kept) / len(kept)
-    my = sum(p[1] for p in kept) / len(kept)
-    ax, ay = _axis(kept)
-    px, py = -ay, ax
-    stations: dict[int, list[tuple[float, float]]] = {}
-    along: list[float] = []
-    for x, y, z in kept:
-        dx = x - mx
-        dy = y - my
-        station = dx * ax + dy * ay
-        offset = dx * px + dy * py
-        along.append(station)
-        stations.setdefault(math.floor(station / BIN_M), []).append((offset, z))
-    diameters = []
-    for group in stations.values():
-        diameter = circle_diameter(group)
-        if diameter is not None and math.isfinite(diameter):
-            diameters.append(diameter)
-    if not diameters:
+    parent = list(range(len(kept)))
+
+    def find(index: int) -> int:
+        while parent[index] != index:
+            parent[index] = parent[parent[index]]
+            index = parent[index]
+        return index
+
+    for i, left in enumerate(kept):
+        for j in range(i + 1, len(kept)):
+            right = kept[j]
+            if math.hypot(left[0] - right[0], left[1] - right[1]) <= LINK_M:
+                parent[find(j)] = find(i)
+    groups: dict[int, list[tuple[float, float, float]]] = {}
+    for index, point in enumerate(kept):
+        groups.setdefault(find(index), []).append(point)
+    fitted: list[tuple[float, float, float, float]] = []
+    for group in groups.values():
+        if len(group) < 3:
+            continue
+        cx = sum(p[0] for p in group) / len(group)
+        cy = sum(p[1] for p in group) / len(group)
+        sxx = syy = sxy = 0.0
+        for x, y, _z in group:
+            dx = x - cx
+            dy = y - cy
+            sxx += dx * dx
+            syy += dy * dy
+            sxy += dx * dy
+        if abs(sxy) < 1e-12 and sxx >= syy:
+            ax, ay = 1.0, 0.0
+        elif abs(sxy) < 1e-12:
+            ax, ay = 0.0, 1.0
+        else:
+            trace = sxx + syy
+            det = sxx * syy - sxy * sxy
+            eigen = trace / 2.0 + math.sqrt(max(0.0, trace * trace / 4.0 - det))
+            vx, vy = sxy, eigen - sxx
+            norm = math.hypot(vx, vy) or 1.0
+            ax, ay = vx / norm, vy / norm
+        uv = [((x - cx) * ax + (y - cy) * ay, z) for x, y, z in group]
+        result = circle_fit(uv)
+        if result is None:
+            continue
+        diameter, rms = result
+        if math.isfinite(diameter) and math.isfinite(rms):
+            fitted.append((cx, cy, diameter, rms))
+    if not fitted:
         return {
             "word": "missing",
             "points": len(kept),
@@ -129,21 +144,34 @@ def section_score(points: list[tuple[float, float, float]]) -> dict[str, float |
             "width": None,
             "length": None,
             "sections": 0,
+            "rms": None,
         }
-    diameters.sort()
+    order = sorted(fitted, key=lambda item: (item[0], item[1]))
+    chain = [order[0]]
+    rest = order[1:]
+    while rest:
+        x0, y0 = chain[-1][0], chain[-1][1]
+        nxt = min(rest, key=lambda item: math.hypot(item[0] - x0, item[1] - y0))
+        chain.append(nxt)
+        rest.remove(nxt)
+    diameters = sorted(item[2] for item in chain)
     mid = len(diameters) // 2
     if len(diameters) % 2:
         width = diameters[mid]
     else:
         width = (diameters[mid - 1] + diameters[mid]) / 2.0
-    length = max(along) - min(along)
+    length = 0.0
+    for left, right in zip(chain, chain[1:]):
+        length += math.hypot(right[0] - left[0], right[1] - left[1])
+    rms = max(item[3] for item in chain)
     return {
         "word": walk(width, length, "return", False),
         "points": len(kept),
         "dropped": dropped,
         "width": width,
         "length": length,
-        "sections": len(diameters),
+        "sections": len(fitted),
+        "rms": rms,
     }
 
 
@@ -151,10 +179,13 @@ def section_line(scored: dict[str, float | int | str | None]) -> str:
     def show(value: float | None) -> str:
         if value is None:
             return "missing"
+        if abs(value) < 1e-9:
+            return "0"
         return f"{value:.10g}"
 
     return (
         f"{scored['word']} sections={scored['sections']} points={scored['points']} "
         f"dropped={scored['dropped']} width={show(scored['width'])} "
-        f"length={show(scored['length'])} echo=return clutter=false"
+        f"length={show(scored['length'])} rms={show(scored['rms'])} "
+        f"echo=return clutter=false"
     )

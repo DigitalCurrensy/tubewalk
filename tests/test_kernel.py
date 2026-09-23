@@ -355,8 +355,31 @@ class ClothAndSectionTests(unittest.TestCase):
         )
         self.assertEqual(
             run(["section", str(repo / "examples" / "tube.csv")]),
-            "ok sections=2 points=8 dropped=0 width=12 length=40 echo=return clutter=false",
+            "ok sections=2 points=8 dropped=0 width=12 length=40 rms=0 echo=return clutter=false",
         )
+
+    def test_slope_keeps_a_step_and_not_the_spike(self) -> None:
+        from tubewalk.cloth import cloth_mask
+
+        points = [(float(x), float(y), 0.0) for x in range(3) for y in range(3)]
+        points[4] = (1.0, 1.0, 10.0)
+        points.append((3.0, 1.0, 0.8))
+        mask = cloth_mask(points)
+        self.assertTrue(mask[-1])
+        self.assertFalse(mask[4])
+
+    def test_bend_is_longer_than_the_chord(self) -> None:
+        from tubewalk.section import section_score
+
+        def ring(cx: float, cy: float) -> list[tuple[float, float, float]]:
+            return [(cx + 6, cy, 0.0), (cx - 6, cy, 0.0), (cx, cy, 6.0), (cx, cy, -6.0)]
+
+        points = ring(0, 0) + ring(0, 30) + ring(40, 30)
+        scored = section_score(points)
+        self.assertEqual(scored["width"], 12)
+        self.assertEqual(scored["length"], 70)
+        self.assertEqual(scored["rms"], 0)
+        self.assertEqual(scored["word"], "ok")
 
     def test_las_12_format_0_round_trip(self) -> None:
         import struct
@@ -401,7 +424,41 @@ class ClothAndSectionTests(unittest.TestCase):
                 read_las(bad)
         self.assertEqual(
             proc,
-            "ok sections=2 points=8 dropped=0 width=12 length=40 echo=return clutter=false",
+            "ok sections=2 points=8 dropped=0 width=12 length=40 rms=0 echo=return clutter=false",
+        )
+
+    def test_laz_round_trip_uses_the_same_circle(self) -> None:
+        import tempfile
+
+        import laspy
+        import numpy
+
+        from tubewalk.las import read_laz
+
+        xs, ys, zs, klass = [], [], [], []
+        for cx, cy in ((0.0, 0.0), (0.0, 40.0)):
+            for x, y, z in ((cx + 6, cy, 0.0), (cx - 6, cy, 0.0), (cx, cy, 6.0), (cx, cy, -6.0)):
+                xs.append(x)
+                ys.append(y)
+                zs.append(z)
+                klass.append(2)
+        xs.append(0.0)
+        ys.append(20.0)
+        zs.append(100.0)
+        klass.append(7)
+        cloud = laspy.create(point_format=0, file_version="1.2")
+        cloud.x = numpy.array(xs)
+        cloud.y = numpy.array(ys)
+        cloud.z = numpy.array(zs)
+        cloud.classification = numpy.array(klass, dtype="u1")
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "tube.laz"
+            cloud.write(path)
+            self.assertEqual(read_laz(path)[-1][4], 7)
+            text = subprocess_run(path, Path(__file__).resolve().parents[1])
+        self.assertEqual(
+            text,
+            "ok sections=2 points=8 dropped=0 width=12 length=40 rms=0 echo=return clutter=false",
         )
 
 

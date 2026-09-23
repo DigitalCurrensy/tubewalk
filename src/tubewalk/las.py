@@ -61,3 +61,35 @@ def read_las(path: Path) -> list[tuple[float, float, float, int, int]]:
             )
         )
     return points
+
+
+def read_laz(path: Path) -> list[tuple[float, float, float, int, int]]:
+    """Read a LAZ file. The bytes are LASzip, not this module's codec.
+
+    LASzip predicts each point from earlier points and compresses the
+    leftovers with a range coder, in chunks, so a reader can seek. lazrs
+    is the decoder. A missing decoder raises ValueError. The values returned
+    are the same five numbers read_las returns.
+    """
+    try:
+        import laspy
+    except ImportError as exc:
+        raise ValueError("laz needs lazrs") from exc
+    try:
+        cloud = laspy.read(str(path))
+    except Exception as exc:
+        raise ValueError("not a laz") from exc
+    returns = cloud.return_number
+    classes = cloud.classification
+    points: list[tuple[float, float, float, int, int]] = []
+    for index in range(len(cloud.points)):
+        points.append(
+            (
+                float(cloud.x[index]),
+                float(cloud.y[index]),
+                float(cloud.z[index]),
+                int(returns[index]) & 0b111,
+                int(classes[index]) & 0b11111,
+            )
+        )
+    return points

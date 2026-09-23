@@ -21,12 +21,15 @@ import math
 # Zhang et al., Remote Sensing 2016. The cloud is turned over. A grid falls
 # onto it. Verlet step: pos = pos + (pos - old) * (1 - damping) + gravity * dt^2.
 # A particle that passes the cell height sticks and stops. Neighbors then pull
-# a free particle in height only. This file does not run the slope post-process.
+# a free particle in height only. The slope pass then accepts a point that
+# the cloth left out when it is within one cell of a ground point and within
+# SMOOTH meters of that point's height.
 
 DAMPING = 0.01
 GRAVITY = 0.2
 TIME_STEP2 = 0.65 * 0.65
 THRESHOLD = 0.5
+SMOOTH = 1.0
 
 
 def _cell(x: float, y: float, origin_x: float, origin_y: float, step: float, nx: int, ny: int) -> int | None:
@@ -124,6 +127,27 @@ def cloth_mask(
         index = _cell(x, y, min_x, min_y, resolution, nx, ny)
         cloth = pos[index] if index is not None else peak
         mask.append(abs(cloth - h) < threshold)
+    return _slope(points, mask, resolution)
+
+
+def _slope(points: list[tuple[float, float, float]], mask: list[bool], cell: float) -> list[bool]:
+    """Connect a steep point to a ground neighbor. The spike is too tall."""
+    guard = 0
+    changed = True
+    while changed and guard <= len(points):
+        guard += 1
+        changed = False
+        for index, point in enumerate(points):
+            if mask[index] or not all(math.isfinite(value) for value in point):
+                continue
+            for other, neighbor in enumerate(points):
+                if not mask[other]:
+                    continue
+                flat = math.hypot(point[0] - neighbor[0], point[1] - neighbor[1])
+                if flat <= cell * math.sqrt(2.0) + 1e-9 and abs(point[2] - neighbor[2]) <= SMOOTH:
+                    mask[index] = True
+                    changed = True
+                    break
     return mask
 
 

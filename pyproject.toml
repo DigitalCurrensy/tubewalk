@@ -9,7 +9,7 @@ description = "Name a conduit from width, length, echo, and clutter. A radar lin
 requires-python = ">=3.11"
 license = { text = "Apache-2.0" }
 authors = [{ name = "Digital Currensy Inc." }]
-dependencies = []
+dependencies = ["laspy", "lazrs"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

@@ -36,7 +36,7 @@ ok points=4 dropped=1 width=12 length=40 echo=return clutter=false
 
 ## Cloth
 
-`python -m tubewalk cloth examples/ground.csv` is the cloth simulation filter of Zhang and others (2016), without the slope post-process. The cloud is inverted, so the low ground becomes the high surface. A grid falls with the Verlet step `pos + (pos - old) * (1 - 0.01) - 0.2 * 0.65²`. A particle that passes the cell height sticks. A free neighbor is pulled to that height. A point within 0.5 of the cloth is ground. The spike at `(1, 1, 10)` is not:
+`python -m tubewalk cloth examples/ground.csv` is the cloth simulation filter of Zhang and others (2016). The cloud is inverted, so the low ground becomes the high surface. A grid falls with the Verlet step below. A particle that passes the cell height sticks. A free neighbor is pulled to that height. A point within 0.5 of the cloth is ground. The slope pass then keeps a point the cloth missed when it is within one cell of a ground point and within 1 m of that height. The spike at `(1, 1, 10)` is not within 1 m, so it stays other:
 
 ```
 ground=8 other=1 resolution=1 threshold=0.5
@@ -44,15 +44,28 @@ ground=8 other=1 resolution=1 threshold=0.5
 
 ## Centerline
 
-`python -m tubewalk section examples/tube.csv` does not use the bounding box. The centerline is the long horizontal axis. Each 1 m station with at least three points gets one algebraic circle in the `(offset, z)` plane. The width is the median diameter. The length is the extent along the centerline. The worked tube runs along Y, so the box treats 12 m as the length and says `stub`. The circle does not:
+`python -m tubewalk section examples/tube.csv` does not use the bounding box. Points within 15 m in plan are one station, so a 12 m ring stays together and the next ring does not. The circle is fit in that station. The length is the polyline through the station centers, starting at the smallest x, so a bend is longer than its chord. The width is the median diameter. `rms` is the largest radial root-mean-square. An RMS above 5% of the diameter is not used. The worked tube is straight, so the polyline is 40 m and the circle fits with no residual:
 
 ```
-ok sections=2 points=8 dropped=0 width=12 length=40 echo=return clutter=false
+ok sections=2 points=8 dropped=0 width=12 length=40 rms=0 echo=return clutter=false
 ```
+
+## Verlet
+
+The cloth does not store a velocity. It stores where the particle is and where it was.
+
+1. Keep the current height as `old`.
+2. The new height is `pos + (pos - old) * (1 - 0.01) - 0.2 * 0.65²`. The last term is gravity times the squared time step, aimed down.
+3. If that height is below the inverted point in the cell, set the height to the point and stop the particle.
+4. A free neighbor is then moved to the stuck neighbor's height. That is the constraint, not another time step.
+
+## LAZ
+
+LAZ is LAS after LASzip. The compressor does not store the points raw. It predicts the next point from the ones before it, then range-codes the difference. Points are grouped into chunks so a reader can start at a chunk instead of the first point. XYZ, the return byte, and the class use one coder. GPS time and color use others. `python -m tubewalk laz file.laz` calls that decoder through lazrs and then drops class 7 and fits the same circle. This file does not contain its own range coder. A file that is not LAZ raises `not a laz`.
 
 ## LAS 1.2
 
-`python -m tubewalk las file.las` reads ASPRS LAS 1.2, point format 0 or 1. The file starts with `LASF`. Version bytes are at 24 and 25. The header size, point offset, format, record length, and count are at byte 94. Scales are three doubles at byte 131. Offsets are three doubles at byte 155. A coordinate is `integer * scale + offset`. The return number is the low 3 bits of point byte 14. The class is the low 5 bits of point byte 15. Formats 0 and 1 only. LAZ is compressed and is not read. Class 7 is dropped, then the same circle is fit. A file that is not this LAS raises `not a las`, `not las 1.2`, or `not this las`.
+`python -m tubewalk las file.las` reads ASPRS LAS 1.2, point format 0 or 1. The file starts with `LASF`. Version bytes are at 24 and 25. The header size, point offset, format, record length, and count are at byte 94. Scales are three doubles at byte 131. Offsets are three doubles at byte 155. A coordinate is `integer * scale + offset`. The return number is the low 3 bits of point byte 14. The class is the low 5 bits of point byte 15. Formats 0 and 1 only. Class 7 is dropped, then the same circle is fit. A file that is not this LAS raises `not a las`, `not las 1.2`, or `not this las`.
 
 ## Worked rows
 
@@ -63,7 +76,8 @@ ok sections=2 points=8 dropped=0 width=12 length=40 echo=return clutter=false
 - Treat ok as a keep.
 - Treat GRAIL as this catalog.
 - Treat a radar line as a ceiling.
-- Read a LAS or LAZ file other than LAS 1.2 point format 0 or 1.
+- Read LAS 1.4, or a point format other than 0 or 1.
+- Contain its own LASzip range coder. `laz` calls lazrs.
 - Fit a centerline to a cloud whose stations have fewer than three points.
 
 ## Run

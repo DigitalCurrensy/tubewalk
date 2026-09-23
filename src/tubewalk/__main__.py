@@ -22,7 +22,7 @@ import sys
 from pathlib import Path
 
 from .cloth import cloth_line
-from .las import read_las
+from .las import read_las, read_laz
 from .lidar import cloud_line, reduce_cloud
 from .section import section_line, section_score
 from .tube import walk
@@ -92,11 +92,11 @@ def main(argv: list[str] | None = None) -> int:
         return _print_points(Path(args[1]), "cloth")
     if len(args) == 2 and args[0] == "section":
         return _print_points(Path(args[1]), "section")
-    if len(args) == 2 and args[0] == "las":
+    if len(args) == 2 and args[0] in {"las", "laz"}:
         return _las(Path(args[1]))
     if len(args) != 1:
         print(
-            "usage: python -m tubewalk <csv> | lidar <cloud.csv> | cloth <cloud.csv> | section <cloud.csv> | las <file.las>",
+            "usage: python -m tubewalk <csv> | lidar <cloud.csv> | cloth <cloud.csv> | section <cloud.csv> | las <file.las> | laz <file.laz>",
             file=sys.stderr,
         )
         return 2
@@ -175,7 +175,7 @@ def _print_points(path: Path, kind: str) -> int:
 
 def _las(path: Path) -> int:
     try:
-        raw = read_las(path)
+        raw = read_laz(path) if path.suffix.lower() == ".laz" else read_las(path)
     except ValueError as exc:
         print(exc, file=sys.stderr)
         return 2
