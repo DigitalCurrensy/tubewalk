@@ -16,12 +16,13 @@ A name for that conduit, or a refusal. ok is not a keep. GRAIL is not this catal
 
 1. **dark** — `echo` is missing, or `echo` is the string `none`.
 2. **missing** — `width_m` is missing or `length_m` is missing. A blank is not a measurement. It is not ok.
-3. **pinch** — `width_m < 10`.
-4. **stub** — `length_m < 30`.
-5. **clutter** — `clutter` is true.
-6. **ok** — none of the above.
+3. **missing** — `width_m` is negative or `length_m` is negative. Zero is a number. Width 0 is pinch. Length 0 is pinch first if width is also under 10.
+4. **pinch** — `width_m < 10`.
+5. **stub** — `length_m < 30`.
+6. **clutter** — `clutter` is true.
+7. **ok** — none of the above.
 
-A missing width is still not a pinch. It is missing. A missing length is still not a stub. It is missing.
+A missing width is still not a pinch. It is missing. A missing length is still not a stub. It is missing. A negative width or length is missing. Zero is a number.
 
 ## Worked rows
 

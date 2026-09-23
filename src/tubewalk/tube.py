@@ -22,6 +22,8 @@ def walk(
         return "dark"
     if width_m is None or length_m is None:
         return "missing"
+    if width_m < 0 or length_m < 0:
+        return "missing"
     if width_m < 10:
         return "pinch"
     if length_m < 30:

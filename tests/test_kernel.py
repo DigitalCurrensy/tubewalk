@@ -43,6 +43,18 @@ class WalkTests(unittest.TestCase):
         self.assertEqual(walk(None, 50_000, "second", False), "missing")
         self.assertEqual(walk(45, None, "conduit", False), "missing")
 
+    def test_negative_width_or_length_is_missing_and_zero_is_a_number(self) -> None:
+        self.assertEqual(walk(-1, 80, "conduit", False), "missing")
+        self.assertEqual(walk(45, -1, "conduit", False), "missing")
+        self.assertEqual(walk(-1, 80, "none", False), "dark")
+        self.assertEqual(walk(0, 80, "conduit", False), "pinch")
+        self.assertEqual(walk(0, 0, "conduit", False), "pinch")
+        self.assertEqual(walk(10, 0, "conduit", False), "stub")
+        self.assertEqual(
+            walk(MHP["width_m"], MHP["length_m"], MHP["echo"], MHP["clutter"]),
+            "missing",
+        )
+
     def test_named_catalog_is_not_a_fetched_survey(self) -> None:
         self.assertEqual(MTP["id"], "TUBE-MTP-WEST")
         self.assertEqual(MTP["lat"], 8.3355)
