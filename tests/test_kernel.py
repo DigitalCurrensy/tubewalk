@@ -524,6 +524,16 @@ class ClothAndSectionTests(unittest.TestCase):
         self.assertEqual((version, count, first_count), (0, 2, 2))
         self.assertGreater(first_size, 0)
         self.assertEqual(decode_laz_index(blob, pulses), [[2, 2], [7, 18]])
+        from tubewalk.integer import decode_table, encode_table
+
+        one = encode_table([(None, 109)])
+        self.assertEqual(one.hex(), "00000000010000003cd8000000")
+        self.assertEqual(decode_table(one, False), [(None, 109)])
+        two = encode_table([(None, 100), (None, 80)])
+        self.assertEqual(two.hex(), "00000000020000003c4e11000000")
+        self.assertEqual(decode_table(two, False), [(None, 100), (None, 80)])
+        varied = [(6, 109), (4, 80), (8, 200)]
+        self.assertEqual(decode_table(encode_table(varied), True), varied)
 
     def test_las_14_format_6_round_trip(self) -> None:
         import struct
