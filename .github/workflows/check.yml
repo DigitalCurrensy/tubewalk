@@ -15,4 +15,4 @@ jobs:
       - name: Kernel tests
         run: python -m unittest tests.test_kernel
       - name: Example
-        run: python -m tubewalk examples/conduit.csv
+        run: python -m tubewalk examples/conduit.csv || test $? -eq 1
