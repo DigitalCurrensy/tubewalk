@@ -1,5 +1,30 @@
 # TUBEWALK
 
+[![check](https://github.com/DigitalCurrensy/tubewalk/actions/workflows/check.yml/badge.svg)](https://github.com/DigitalCurrensy/tubewalk/actions/workflows/check.yml)
+
+For a lidar technician who has a point cloud, or a LAS file, and wants a width and a length.
+
+The cloth marks ground. The section fits a diameter along the path. LAS 1.2 and LAS 1.4 are read here. A LAZ file's chunk table is read here. The points inside a `.laz` file are not decoded here.
+
+A width is not a signed survey.
+
+## Install
+
+```bash
+pip install -e .
+PYTHONPATH=src python -m unittest tests.test_kernel
+```
+
+## First command
+
+```bash
+PYTHONPATH=src python -m tubewalk examples/conduit.csv
+PYTHONPATH=src python -m tubewalk section examples/tube.csv
+```
+
+The rest of this file is the rule that command prints.
+
+
 The caller supplies width, length, echo, and clutter.
 
 **Owner:** Digital Currensy Inc.
