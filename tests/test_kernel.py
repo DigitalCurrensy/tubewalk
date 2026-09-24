@@ -348,7 +348,10 @@ class ClothAndSectionTests(unittest.TestCase):
             self.assertEqual(proc.returncode, 0, proc.stderr)
             return proc.stdout.strip()
 
-        self.assertEqual(run(["cloth", str(repo / "examples" / "ground.csv")]), "ground=8 other=1 class2=8 class1=1 class7=0 resolution=1 threshold=0.5")
+        self.assertEqual(
+            run(["cloth", str(repo / "examples" / "ground.csv")]),
+            "ground=8 other=1 class2=8 class1=0 class7=0 class18=1 resolution=1 threshold=0.5",
+        )
         self.assertEqual(
             run(["lidar", str(repo / "examples" / "tube.csv")]),
             "stub points=8 dropped=0 width=40 length=12 echo=return clutter=false",
@@ -480,6 +483,28 @@ class ClothAndSectionTests(unittest.TestCase):
         pit = [(x, y, -5.0 if (x, y) == (1, 1) else 0.0) for x in range(3) for y in range(3)]
         classes = classify(pit)
         self.assertEqual(classes[pit.index((1, 1, -5.0))], 7)
+        from tubewalk.asprs import (
+            asprs_name,
+            classification_flags,
+            decode_point14,
+            encode_point14,
+            point14_instance,
+        )
+
+        self.assertEqual(asprs_name(2), "ground")
+        self.assertEqual(asprs_name(8), "reserved")
+        self.assertEqual(asprs_name(12), "reserved")
+        self.assertEqual(asprs_name(18), "high noise")
+        self.assertEqual(asprs_name(22), "temporal exclusion")
+        self.assertEqual(asprs_name(63), "reserved")
+        self.assertEqual(asprs_name(64), "user")
+        self.assertEqual(classification_flags(key_point=True), 2)
+        self.assertEqual(point14_instance(2, 1, 1), 5)
+        self.assertEqual(point14_instance(2, 2, 3), 4)
+        self.assertEqual(point14_instance(40, 1, 1), 17)
+        points = [(2, 1, 1), (2, 1, 1), (7, 2, 2), (18, 1, 1)]
+        returns = [(point[1], point[2]) for point in points]
+        self.assertEqual(decode_point14(encode_point14(points), returns), [2, 2, 7, 18])
 
     def test_las_14_format_6_round_trip(self) -> None:
         import struct

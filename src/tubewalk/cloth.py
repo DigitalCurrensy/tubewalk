@@ -152,11 +152,11 @@ def _slope(points: list[tuple[float, float, float]], mask: list[bool], cell: flo
 
 
 def classify(points: list[tuple[float, float, float]], resolution: float = 1.0) -> list[int]:
-    """ASPRS class for this pass only. 2 is cloth ground. 7 is a low point. 1 is the rest.
+    """LAS 1.4 classes this pass can assign. 2 ground, 7 low point, 18 high noise, 1 the rest.
 
-    A low point sits more than the cloth threshold below the median height of
-    the points within one cell. That rule wins even if the inverted cloth
-    pinned itself on the low point. Vegetation and buildings are not labeled.
+    Low and high use the cloth threshold against the median height within one
+    cell. That 0.5 m is this file's threshold, not a height in the ASPRS table.
+    Vegetation, buildings, water, and rail are not labeled.
     """
     mask = cloth_mask(points, resolution=resolution)
     classes: list[int] = []
@@ -178,28 +178,10 @@ def classify(points: list[tuple[float, float, float]], resolution: float = 1.0) 
             if point[2] < median - THRESHOLD:
                 classes.append(7)
                 continue
+            if point[2] > median + THRESHOLD:
+                classes.append(18)
+                continue
         classes.append(2 if mask[index] else 1)
-    return classes
-    ground = [point for point, flag in zip(points, mask) if flag]
-    classes: list[int] = []
-    for point, flag in zip(points, mask):
-        if not all(math.isfinite(value) for value in point):
-            classes.append(0)
-            continue
-        if flag:
-            classes.append(2)
-            continue
-        nearest_z = None
-        nearest = math.inf
-        for other in ground:
-            flat = math.hypot(point[0] - other[0], point[1] - other[1])
-            if flat < nearest:
-                nearest = flat
-                nearest_z = other[2]
-        if nearest_z is not None and point[2] < nearest_z - THRESHOLD:
-            classes.append(7)
-        else:
-            classes.append(1)
     return classes
 
 
@@ -207,8 +189,9 @@ def cloth_line(points: list[tuple[float, float, float]], resolution: float = 1.0
     classes = classify(points, resolution)
     ground = sum(1 for value in classes if value == 2)
     low = sum(1 for value in classes if value == 7)
-    other = len(classes) - ground - low
+    high = sum(1 for value in classes if value == 18)
+    rest = sum(1 for value in classes if value == 1)
     return (
-        f"ground={ground} other={other + low} class2={ground} class1={other} class7={low} "
-        f"resolution={resolution:g} threshold={THRESHOLD:g}"
+        f"ground={ground} other={len(classes) - ground} class2={ground} class1={rest} "
+        f"class7={low} class18={high} resolution={resolution:g} threshold={THRESHOLD:g}"
     )

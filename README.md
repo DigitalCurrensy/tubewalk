@@ -36,10 +36,10 @@ ok points=4 dropped=1 width=12 length=40 echo=return clutter=false
 
 ## Cloth
 
-`python -m tubewalk cloth examples/ground.csv` is the cloth simulation filter of Zhang and others (2016). The cloud is inverted, so the low ground becomes the high surface. A grid falls with the Verlet step below. A particle that passes the cell height sticks. A free neighbor is pulled to that height. A point within 0.5 of the cloth is ground. The slope pass then keeps a point the cloth missed when it is within one cell of a ground point and within 1 m of that height. The spike at `(1, 1, 10)` is above the ground, so it is class 1. A point more than 0.5 m below the median of the points within one cell is class 7, even when the inverted cloth pins on that low point. Vegetation and buildings are not labeled:
+`python -m tubewalk cloth examples/ground.csv` is the cloth simulation filter of Zhang and others (2016). The cloud is inverted, so the low ground becomes the high surface. A grid falls with the Verlet step below. A particle that passes the cell height sticks. A free neighbor is pulled to that height. A point within 0.5 of the cloth is ground. The slope pass then keeps a point the cloth missed when it is within one cell of a ground point and within 1 m of that height. The spike at `(1, 1, 10)` is more than 0.5 m above the median of the points within one cell, so it is class 18, high noise. A point more than 0.5 m below that median is class 7. The 0.5 m is this file's cloth threshold. It is not a height written in the ASPRS table. Vegetation, buildings, water, and rail are not labeled. Class 8 and class 12 are reserved. A key-point is flag bit 1, value 2, not class 8:
 
 ```
-ground=8 other=1 class2=8 class1=1 class7=0 resolution=1 threshold=0.5
+ground=8 other=1 class2=8 class1=0 class7=0 class18=1 resolution=1 threshold=0.5
 ```
 
 ## Centerline
@@ -69,7 +69,9 @@ LAZ is LAS after LASzip. The compressor does not store the points raw. It predic
 
 ## Range coder
 
-`encode_bits` is the per-bit model. The context is `min(7, bit length)` of the previous residual. Each bit has its own count of zeros and of ones, starting at 1. A value is a zero flag, five length bits, a sign bit, then the magnitude bits under the leading 1. `decode_bits(encode_bits(values))` returns the same integers. LASzip's chunk index and its exact context tables are not in this file. It still does not decode a `.laz` file.
+`encode_bits` is the per-bit model. The context is `min(7, bit length)` of the previous residual. Each bit has its own count of zeros and of ones, starting at 1. A value is a zero flag, five length bits, a sign bit, then the magnitude bits under the leading 1. `decode_bits(encode_bits(values))` returns the same integers.
+
+LAS 1.4 formats 6 to 10 name classes 0 through 22. `asprs_name(2)` is `ground`. `asprs_name(8)` and `asprs_name(12)` are `reserved`. `asprs_name(18)` is `high noise`. Codes 23 through 63 are `reserved`. Codes 64 through 255 are `user`. The point-14 class coder uses 256 symbols and 64 instances. The instance is `(previous class mod 32) * 2`, plus 1 when this return number is 1 and the pulse has fewer than 2 returns. Three checks: previous 2 with one return is instance 5, previous 2 with return 2 of 3 is instance 4, previous 40 with one return is instance 17. The first class in a chunk is stored raw. Counts start at 1. That is not LASzip's initial model. It still does not decode a `.laz` file.
 
 ## Worked rows
 
