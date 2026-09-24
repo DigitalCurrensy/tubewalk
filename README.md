@@ -36,10 +36,10 @@ ok points=4 dropped=1 width=12 length=40 echo=return clutter=false
 
 ## Cloth
 
-`python -m tubewalk cloth examples/ground.csv` is the cloth simulation filter of Zhang and others (2016). The cloud is inverted, so the low ground becomes the high surface. A grid falls with the Verlet step below. A particle that passes the cell height sticks. A free neighbor is pulled to that height. A point within 0.5 of the cloth is ground. The slope pass then keeps a point the cloth missed when it is within one cell of a ground point and within 1 m of that height. The spike at `(1, 1, 10)` is not within 1 m, so it stays other:
+`python -m tubewalk cloth examples/ground.csv` is the cloth simulation filter of Zhang and others (2016). The cloud is inverted, so the low ground becomes the high surface. A grid falls with the Verlet step below. A particle that passes the cell height sticks. A free neighbor is pulled to that height. A point within 0.5 of the cloth is ground. The slope pass then keeps a point the cloth missed when it is within one cell of a ground point and within 1 m of that height. The spike at `(1, 1, 10)` is not within 1 m, so it stays other. ASPRS class 2 is ground. Class 1 is unclassified. This pass assigns those two and nothing else. Vegetation, buildings, and class 7 are not labeled here:
 
 ```
-ground=8 other=1 resolution=1 threshold=0.5
+ground=8 other=1 class2=8 class1=1 resolution=1 threshold=0.5
 ```
 
 ## Centerline
@@ -47,7 +47,7 @@ ground=8 other=1 resolution=1 threshold=0.5
 `python -m tubewalk section examples/tube.csv` does not use the bounding box. Points within 15 m in plan are one station, so a 12 m ring stays together and the next ring does not. The circle is fit in that station. The length is the polyline through the station centers, starting at the smallest x, so a bend is longer than its chord. The width is the median diameter. `rms` is the largest radial root-mean-square. An RMS above 5% of the diameter is not used. The worked tube is straight, so the polyline is 40 m and the circle fits with no residual:
 
 ```
-ok sections=2 segments=2 points=8 dropped=0 width=12 length=40 closure=0 rms=0 echo=return clutter=false
+ok sections=2 segments=2 points=8 dropped=0 width=12 length=40 closure=0 offset=0 rms=0 echo=return clutter=false
 ```
 
 ## Verlet
@@ -69,7 +69,7 @@ LAZ is LAS after LASzip. The compressor does not store the points raw. It predic
 
 ## Range coder
 
-`range_coder` is a uniform 256-symbol range coder. The window is 32 bits. A symbol takes one 256th of it. The window doubles when it sits in the low half, the high half, or the middle. Signed integers are zigzagged, then stored seven bits at a time, then range-coded. `decode_deltas(encode_deltas(values))` returns the same integers. LASzip uses the same family of coder with a different predictor and a chunk index. This module does not decode a `.laz` file. `laz` still calls lazrs for that.
+`range_coder` also has an order-1 model. The context is the previous byte's high 3 bits, eight count tables, each symbol starting at 1. LASzip uses a context model of the same family on each bit of the residual, and the context is the magnitude class of the previous residual. This file does that on whole bytes. `decode_context(encode_context(symbols))` returns the same bytes. It still does not decode a `.laz` file.
 
 ## Worked rows
 

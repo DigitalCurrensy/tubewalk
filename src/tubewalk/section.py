@@ -89,6 +89,7 @@ def section_score(points: list[tuple[float, float, float]]) -> dict[str, float |
             "sections": 0,
             "segments": 0,
             "closure": None,
+            "offset": None,
             "rms": None,
         }
     parent = list(range(len(kept)))
@@ -149,6 +150,7 @@ def section_score(points: list[tuple[float, float, float]]) -> dict[str, float |
             "sections": 0,
             "segments": segments,
             "closure": None,
+            "offset": None,
             "rms": None,
         }
     order = sorted(fitted, key=lambda item: (item[0], item[1]))
@@ -172,6 +174,15 @@ def section_score(points: list[tuple[float, float, float]]) -> dict[str, float |
         chord = 0.0
     else:
         chord = math.hypot(chain[-1][0] - chain[0][0], chain[-1][1] - chain[0][1])
+    offset = 0.0
+    if len(chain) >= 3 and chord > 0.0:
+        x0, y0 = chain[0][0], chain[0][1]
+        dx = chain[-1][0] - x0
+        dy = chain[-1][1] - y0
+        for x, y, _diameter, _rms in chain[1:-1]:
+            signed = (dx * (y - y0) - dy * (x - x0)) / chord
+            if abs(signed) > abs(offset):
+                offset = signed
     rms = max(item[3] for item in chain)
     return {
         "word": walk(width, length, "return", False),
@@ -182,6 +193,7 @@ def section_score(points: list[tuple[float, float, float]]) -> dict[str, float |
         "sections": len(fitted),
         "segments": segments,
         "closure": length - chord,
+        "offset": offset,
         "rms": rms,
     }
 
@@ -198,5 +210,5 @@ def section_line(scored: dict[str, float | int | str | None]) -> str:
         f"{scored['word']} sections={scored['sections']} segments={scored['segments']} "
         f"points={scored['points']} dropped={scored['dropped']} width={show(scored['width'])} "
         f"length={show(scored['length'])} closure={show(scored['closure'])} "
-        f"rms={show(scored['rms'])} echo=return clutter=false"
+        f"offset={show(scored['offset'])} rms={show(scored['rms'])} echo=return clutter=false"
     )

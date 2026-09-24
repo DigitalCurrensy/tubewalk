@@ -154,4 +154,8 @@ def _slope(points: list[tuple[float, float, float]], mask: list[bool], cell: flo
 def cloth_line(points: list[tuple[float, float, float]], resolution: float = 1.0) -> str:
     mask = cloth_mask(points, resolution=resolution)
     ground = sum(1 for flag in mask if flag)
-    return f"ground={ground} other={len(mask) - ground} resolution={resolution:g} threshold={THRESHOLD:g}"
+    other = len(mask) - ground
+    return (
+        f"ground={ground} other={other} class2={ground} class1={other} "
+        f"resolution={resolution:g} threshold={THRESHOLD:g}"
+    )

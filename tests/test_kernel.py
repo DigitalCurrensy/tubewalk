@@ -348,14 +348,14 @@ class ClothAndSectionTests(unittest.TestCase):
             self.assertEqual(proc.returncode, 0, proc.stderr)
             return proc.stdout.strip()
 
-        self.assertEqual(run(["cloth", str(repo / "examples" / "ground.csv")]), "ground=8 other=1 resolution=1 threshold=0.5")
+        self.assertEqual(run(["cloth", str(repo / "examples" / "ground.csv")]), "ground=8 other=1 class2=8 class1=1 resolution=1 threshold=0.5")
         self.assertEqual(
             run(["lidar", str(repo / "examples" / "tube.csv")]),
             "stub points=8 dropped=0 width=40 length=12 echo=return clutter=false",
         )
         self.assertEqual(
             run(["section", str(repo / "examples" / "tube.csv")]),
-            "ok sections=2 segments=2 points=8 dropped=0 width=12 length=40 closure=0 rms=0 echo=return clutter=false",
+            "ok sections=2 segments=2 points=8 dropped=0 width=12 length=40 closure=0 offset=0 rms=0 echo=return clutter=false",
         )
 
     def test_slope_keeps_a_step_and_not_the_spike(self) -> None:
@@ -379,6 +379,7 @@ class ClothAndSectionTests(unittest.TestCase):
         self.assertEqual(scored["width"], 12)
         self.assertEqual(scored["length"], 70)
         self.assertEqual(scored["closure"], 20)
+        self.assertEqual(scored["offset"], 24)
         self.assertEqual(scored["segments"], 3)
         self.assertEqual(scored["rms"], 0)
         self.assertEqual(scored["word"], "ok")
@@ -426,7 +427,7 @@ class ClothAndSectionTests(unittest.TestCase):
                 read_las(bad)
         self.assertEqual(
             proc,
-            "ok sections=2 segments=2 points=8 dropped=0 width=12 length=40 closure=0 rms=0 echo=return clutter=false",
+            "ok sections=2 segments=2 points=8 dropped=0 width=12 length=40 closure=0 offset=0 rms=0 echo=return clutter=false",
         )
 
     def test_laz_round_trip_uses_the_same_circle(self) -> None:
@@ -460,7 +461,7 @@ class ClothAndSectionTests(unittest.TestCase):
             text = subprocess_run(path, Path(__file__).resolve().parents[1])
         self.assertEqual(
             text,
-            "ok sections=2 segments=2 points=8 dropped=0 width=12 length=40 closure=0 rms=0 echo=return clutter=false",
+            "ok sections=2 segments=2 points=8 dropped=0 width=12 length=40 closure=0 offset=0 rms=0 echo=return clutter=false",
         )
 
     def test_range_coder_round_trips_signed_deltas(self) -> None:
@@ -468,6 +469,10 @@ class ClothAndSectionTests(unittest.TestCase):
 
         values = [0, 1, -1, 12, -40, 1000, -1000]
         self.assertEqual(decode_deltas(encode_deltas(values)), values)
+        from tubewalk.range_coder import decode_context, encode_context
+
+        symbols = [0, 1, 2, 255, 3, 3, 3, 40]
+        self.assertEqual(decode_context(encode_context(symbols)), symbols)
 
     def test_las_14_format_6_round_trip(self) -> None:
         import struct
@@ -503,7 +508,7 @@ class ClothAndSectionTests(unittest.TestCase):
             text = subprocess_run(path, Path(__file__).resolve().parents[1])
         self.assertEqual(
             text,
-            "ok sections=2 segments=2 points=8 dropped=0 width=12 length=40 closure=0 rms=0 echo=return clutter=false",
+            "ok sections=2 segments=2 points=8 dropped=0 width=12 length=40 closure=0 offset=0 rms=0 echo=return clutter=false",
         )
 
 

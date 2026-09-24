@@ -162,3 +162,121 @@ def decode_deltas(blob: bytes) -> list[int]:
     if shift:
         raise ValueError("bad range")
     return values
+
+
+def encode_context(symbols: list[int]) -> bytes:
+    """Order-1 range code. The context is the previous byte's high 3 bits.
+
+    Eight models, each a count of 256 symbols starting at 1. LASzip does this
+    per bit, and the context there is the magnitude class of the previous
+    residual. This is that idea on whole bytes. It does not decode a .laz file.
+    """
+    if len(symbols) > 255:
+        raise ValueError("bad symbol")
+    for symbol in symbols:
+        if symbol < 0 or symbol > 255:
+            raise ValueError("bad symbol")
+    counts = [[1] * 256 for _ in range(8)]
+    totals = [256] * 8
+    low = 0
+    high = MASK
+    pending = 0
+    out = bytearray()
+    context = 0
+
+    def emit(bit: int) -> None:
+        nonlocal pending
+        out.append(bit)
+        while pending:
+            out.append(bit ^ 1)
+            pending -= 1
+
+    for symbol in symbols:
+        cum = sum(counts[context][:symbol])
+        freq = counts[context][symbol]
+        total = totals[context]
+        span = high - low + 1
+        high = low + (span * (cum + freq) // total) - 1
+        low = low + (span * cum // total)
+        counts[context][symbol] += 1
+        totals[context] += 1
+        while True:
+            if high < HALF:
+                emit(0)
+            elif low >= HALF:
+                emit(1)
+                low -= HALF
+                high -= HALF
+            elif low >= QUARTER and high < 3 * QUARTER:
+                pending += 1
+                low -= QUARTER
+                high -= QUARTER
+            else:
+                break
+            low = (low << 1) & MASK
+            high = ((high << 1) | 1) & MASK
+        context = symbol >> 5
+    pending += 1
+    emit(1 if low >= QUARTER else 0)
+    return bytes([len(symbols)]) + bytes(out)
+
+
+def decode_context(blob: bytes) -> list[int]:
+    if not blob:
+        raise ValueError("bad range")
+    count = blob[0]
+    bits = list(blob[1:])
+    index = 0
+
+    def bit() -> int:
+        nonlocal index
+        if index >= len(bits):
+            return 0
+        value = bits[index]
+        index += 1
+        return value
+
+    counts = [[1] * 256 for _ in range(8)]
+    totals = [256] * 8
+    low = 0
+    high = MASK
+    code = 0
+    for _ in range(32):
+        code = ((code << 1) | bit()) & MASK
+    symbols = []
+    context = 0
+    for _ in range(count):
+        span = high - low + 1
+        target = ((code - low + 1) * totals[context] - 1) // span
+        cum = 0
+        symbol = 255
+        freq = counts[context][255]
+        for guess in range(256):
+            freq = counts[context][guess]
+            if cum + freq > target:
+                symbol = guess
+                break
+            cum += freq
+        high = low + (span * (cum + freq) // totals[context]) - 1
+        low = low + (span * cum // totals[context])
+        counts[context][symbol] += 1
+        totals[context] += 1
+        while True:
+            if high < HALF:
+                pass
+            elif low >= HALF:
+                low -= HALF
+                high -= HALF
+                code -= HALF
+            elif low >= QUARTER and high < 3 * QUARTER:
+                low -= QUARTER
+                high -= QUARTER
+                code -= QUARTER
+            else:
+                break
+            low = (low << 1) & MASK
+            high = ((high << 1) | 1) & MASK
+            code = ((code << 1) | bit()) & MASK
+        symbols.append(symbol)
+        context = symbol >> 5
+    return symbols
