@@ -467,6 +467,44 @@ class ClothAndSectionTests(unittest.TestCase):
             "ok sections=2 segments=2 points=8 dropped=0 width=12 length=40 closure=0 offset=0 rms=0 echo=return clutter=false",
         )
 
+    def test_chunk_table_matches_the_file_and_class_18_survives(self) -> None:
+        import io
+        import tempfile
+
+        import laspy
+        import lazrs
+        import numpy
+
+        from tubewalk.las import read_chunk_table, read_laz
+
+        cloud = laspy.create(point_format=6, file_version="1.4")
+        cloud.x = numpy.array([0.0, 1.0, 2.0])
+        cloud.y = numpy.array([0.0, 0.0, 0.0])
+        cloud.z = numpy.array([0.0, 0.0, 10.0])
+        cloud.classification = numpy.array([2, 2, 18], dtype="u1")
+        cloud.return_number = numpy.array([1, 1, 9], dtype="u1")
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "six.laz"
+            cloud.write(path)
+            blob = path.read_bytes()
+            offset = int.from_bytes(blob[96:100], "little")
+            header_size = int.from_bytes(blob[94:96], "little")
+            user_at = blob.find(b"laszip encoded")
+            vlr_start = user_at - 2
+            rec_len = int.from_bytes(blob[vlr_start + 20 : vlr_start + 22], "little")
+            data = blob[vlr_start + 54 : vlr_start + 54 + rec_len]
+            src = io.BytesIO(blob)
+            src.seek(offset)
+            theirs = [
+                (int(count), int(size))
+                for count, size in lazrs.read_chunk_table(src, lazrs.LazVlr(data))
+            ]
+            self.assertEqual(read_chunk_table(path), theirs)
+            self.assertGreater(header_size, 0)
+            got = read_laz(path)
+            self.assertEqual(got[-1][3], 9)
+            self.assertEqual(got[-1][4], 18)
+
     def test_range_coder_round_trips_signed_deltas(self) -> None:
         from tubewalk.range_coder import decode_deltas, encode_deltas
 

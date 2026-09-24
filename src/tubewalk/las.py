@@ -85,6 +85,46 @@ def read_las(path: Path) -> list[tuple[float, float, float, int, int]]:
     return points
 
 
+def read_chunk_table(path: Path) -> list[tuple[int, int]]:
+    """Point count and compressed size of each chunk, from the file's own table.
+
+    The int64 at the start of the point block is the file position of the table.
+    The table is version 0, the chunk count, then the integer compressor.
+    A chunk size of 0 or 4294967295 means the counts are in the table.
+    Any other chunk size is fixed: the table stores only byte sizes, and each
+    count is that size. The last chunk of a fixed file can hold fewer points
+    than that. This does not decode the points.
+    """
+    from tubewalk.integer import decode_table
+
+    blob = path.read_bytes()
+    if len(blob) < HEADER_14 or blob[0:4] != b"LASF":
+        raise ValueError("not a laz")
+    header_size, offset, nvlr = struct.unpack_from("<HII", blob, 94)
+    record = None
+    pos = header_size
+    for _ in range(nvlr):
+        if pos + 54 > len(blob):
+            raise ValueError("not a laz")
+        user = blob[pos + 2 : pos + 18]
+        rec_id, rec_len = struct.unpack_from("<HH", blob, pos + 18)
+        data = blob[pos + 54 : pos + 54 + rec_len]
+        if user.startswith(b"laszip encoded") and rec_id == 22204:
+            record = data
+        pos += 54 + rec_len
+    if record is None or len(record) < 16 or offset + 8 > len(blob):
+        raise ValueError("not a laz")
+    chunk_size = struct.unpack_from("<I", record, 12)[0]
+    table_at = struct.unpack_from("<q", blob, offset)[0]
+    if table_at < 0 or table_at >= len(blob):
+        raise ValueError("not a laz")
+    adaptive = chunk_size in (0, 0xFFFFFFFF)
+    rows = decode_table(blob[table_at:], point_counts=adaptive)
+    if adaptive:
+        return [(int(count), size) for count, size in rows if count is not None]
+    return [(chunk_size, size) for _count, size in rows]
+
+
 def read_laz(path: Path) -> list[tuple[float, float, float, int, int]]:
     """Read a LAZ file. The bytes are LASzip, not this module's codec.
 
@@ -103,6 +143,9 @@ def read_laz(path: Path) -> list[tuple[float, float, float, int, int]]:
         raise ValueError("not a laz") from exc
     returns = cloud.return_number
     classes = cloud.classification
+    fmt = int(cloud.header.point_format.id)
+    ret_mask = 0b1111 if fmt >= 6 else 0b111
+    cls_mask = 0xFF if fmt >= 6 else 0b11111
     points: list[tuple[float, float, float, int, int]] = []
     for index in range(len(cloud.points)):
         points.append(
@@ -110,8 +153,8 @@ def read_laz(path: Path) -> list[tuple[float, float, float, int, int]]:
                 float(cloud.x[index]),
                 float(cloud.y[index]),
                 float(cloud.z[index]),
-                int(returns[index]) & 0b111,
-                int(classes[index]) & 0b11111,
+                int(returns[index]) & ret_mask,
+                int(classes[index]) & cls_mask,
             )
         )
     return points
