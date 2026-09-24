@@ -47,7 +47,7 @@ ground=8 other=1 resolution=1 threshold=0.5
 `python -m tubewalk section examples/tube.csv` does not use the bounding box. Points within 15 m in plan are one station, so a 12 m ring stays together and the next ring does not. The circle is fit in that station. The length is the polyline through the station centers, starting at the smallest x, so a bend is longer than its chord. The width is the median diameter. `rms` is the largest radial root-mean-square. An RMS above 5% of the diameter is not used. The worked tube is straight, so the polyline is 40 m and the circle fits with no residual:
 
 ```
-ok sections=2 points=8 dropped=0 width=12 length=40 rms=0 echo=return clutter=false
+ok sections=2 segments=2 points=8 dropped=0 width=12 length=40 closure=0 rms=0 echo=return clutter=false
 ```
 
 ## Verlet
@@ -61,11 +61,15 @@ The cloth does not store a velocity. It stores where the particle is and where i
 
 ## LAZ
 
-LAZ is LAS after LASzip. The compressor does not store the points raw. It predicts the next point from the ones before it, then range-codes the difference. Points are grouped into chunks so a reader can start at a chunk instead of the first point. XYZ, the return byte, and the class use one coder. GPS time and color use others. `python -m tubewalk laz file.laz` calls that decoder through lazrs and then drops class 7 and fits the same circle. This file does not contain its own range coder. A file that is not LAZ raises `not a laz`.
+LAZ is LAS after LASzip. The compressor does not store the points raw. It predicts the next point from the ones before it, then range-codes the difference. Points are grouped into chunks so a reader can start at a chunk instead of the first point. XYZ, the return byte, and the class use one coder. GPS time and color use others. `python -m tubewalk laz file.laz` calls that decoder through lazrs and then drops class 7 and fits the same circle. This file contains that range coder for its own deltas. It does not decode a `.laz` file. `laz` still calls lazrs. A file that is not LAZ raises `not a laz`.
 
-## LAS 1.2
+## LAS
 
-`python -m tubewalk las file.las` reads ASPRS LAS 1.2, point format 0 or 1. The file starts with `LASF`. Version bytes are at 24 and 25. The header size, point offset, format, record length, and count are at byte 94. Scales are three doubles at byte 131. Offsets are three doubles at byte 155. A coordinate is `integer * scale + offset`. The return number is the low 3 bits of point byte 14. The class is the low 5 bits of point byte 15. Formats 0 and 1 only. Class 7 is dropped, then the same circle is fit. A file that is not this LAS raises `not a las`, `not las 1.2`, or `not this las`.
+`python -m tubewalk las file.las` reads ASPRS LAS 1.2 formats 0 and 1, and LAS 1.4 formats 6 and 7. The file starts with `LASF`. Version bytes are at 24 and 25. Scales are three doubles at byte 131. Offsets are three doubles at byte 155. A coordinate is `integer * scale + offset`. In 1.2 the return number is the low 3 bits of byte 14 and the class is the low 5 bits of byte 15. In 1.4 format 6 the return number is the low 4 bits of the uint16 at byte 14, the class is the byte at offset 16, and the point count is the uint64 at byte 247. Class 7 is dropped, then the same circle is fit. Anything else raises `not a las`, `not las 1.2 or 1.4`, or `not this las`.
+
+## Range coder
+
+`range_coder` is a uniform 256-symbol range coder. The window is 32 bits. A symbol takes one 256th of it. The window doubles when it sits in the low half, the high half, or the middle. Signed integers are zigzagged, then stored seven bits at a time, then range-coded. `decode_deltas(encode_deltas(values))` returns the same integers. LASzip uses the same family of coder with a different predictor and a chunk index. This module does not decode a `.laz` file. `laz` still calls lazrs for that.
 
 ## Worked rows
 
@@ -77,7 +81,7 @@ LAZ is LAS after LASzip. The compressor does not store the points raw. It predic
 - Treat GRAIL as this catalog.
 - Treat a radar line as a ceiling.
 - Read LAS 1.4, or a point format other than 0 or 1.
-- Contain its own LASzip range coder. `laz` calls lazrs.
+- Decode a `.laz` file with this range coder. `laz` calls lazrs. The coder here round-trips signed deltas only.
 - Fit a centerline to a cloud whose stations have fewer than three points.
 
 ## Run

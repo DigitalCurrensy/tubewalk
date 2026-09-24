@@ -355,7 +355,7 @@ class ClothAndSectionTests(unittest.TestCase):
         )
         self.assertEqual(
             run(["section", str(repo / "examples" / "tube.csv")]),
-            "ok sections=2 points=8 dropped=0 width=12 length=40 rms=0 echo=return clutter=false",
+            "ok sections=2 segments=2 points=8 dropped=0 width=12 length=40 closure=0 rms=0 echo=return clutter=false",
         )
 
     def test_slope_keeps_a_step_and_not_the_spike(self) -> None:
@@ -378,6 +378,8 @@ class ClothAndSectionTests(unittest.TestCase):
         scored = section_score(points)
         self.assertEqual(scored["width"], 12)
         self.assertEqual(scored["length"], 70)
+        self.assertEqual(scored["closure"], 20)
+        self.assertEqual(scored["segments"], 3)
         self.assertEqual(scored["rms"], 0)
         self.assertEqual(scored["word"], "ok")
 
@@ -424,7 +426,7 @@ class ClothAndSectionTests(unittest.TestCase):
                 read_las(bad)
         self.assertEqual(
             proc,
-            "ok sections=2 points=8 dropped=0 width=12 length=40 rms=0 echo=return clutter=false",
+            "ok sections=2 segments=2 points=8 dropped=0 width=12 length=40 closure=0 rms=0 echo=return clutter=false",
         )
 
     def test_laz_round_trip_uses_the_same_circle(self) -> None:
@@ -458,7 +460,50 @@ class ClothAndSectionTests(unittest.TestCase):
             text = subprocess_run(path, Path(__file__).resolve().parents[1])
         self.assertEqual(
             text,
-            "ok sections=2 points=8 dropped=0 width=12 length=40 rms=0 echo=return clutter=false",
+            "ok sections=2 segments=2 points=8 dropped=0 width=12 length=40 closure=0 rms=0 echo=return clutter=false",
+        )
+
+    def test_range_coder_round_trips_signed_deltas(self) -> None:
+        from tubewalk.range_coder import decode_deltas, encode_deltas
+
+        values = [0, 1, -1, 12, -40, 1000, -1000]
+        self.assertEqual(decode_deltas(encode_deltas(values)), values)
+
+    def test_las_14_format_6_round_trip(self) -> None:
+        import struct
+        import tempfile
+
+        from tubewalk.las import read_las
+
+        scale = 0.001
+        tube = [(6, 0, 0, 1, 2), (-6, 0, 0, 1, 2), (0, 0, 6, 1, 2), (0, 0, -6, 1, 2),
+                (6, 40, 0, 1, 2), (-6, 40, 0, 1, 2), (0, 40, 6, 1, 2), (0, 40, -6, 1, 2),
+                (0, 20, 100, 1, 7)]
+        header = bytearray(375)
+        header[0:4] = b"LASF"
+        header[24] = 1
+        header[25] = 4
+        struct.pack_into("<H", header, 94, 375)
+        struct.pack_into("<I", header, 96, 375)
+        header[104] = 6
+        struct.pack_into("<H", header, 105, 30)
+        struct.pack_into("<3d", header, 131, scale, scale, scale)
+        struct.pack_into("<Q", header, 247, len(tube))
+        body = bytearray()
+        for x, y, z, ret, klass in tube:
+            body += struct.pack(
+                "<3iHHBBhHd",
+                int(round(x / scale)), int(round(y / scale)), int(round(z / scale)),
+                0, ret, klass, 0, 0, 0, 0.0,
+            )
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "tube14.las"
+            path.write_bytes(bytes(header) + bytes(body))
+            self.assertEqual(read_las(path)[-1][4], 7)
+            text = subprocess_run(path, Path(__file__).resolve().parents[1])
+        self.assertEqual(
+            text,
+            "ok sections=2 segments=2 points=8 dropped=0 width=12 length=40 closure=0 rms=0 echo=return clutter=false",
         )
 
 

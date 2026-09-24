@@ -1,0 +1,164 @@
+# Copyright 2026 Digital Currensy Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""A range coder for signed deltas. This is not LASzip."""
+
+from __future__ import annotations
+
+# Uniform 256-symbol model. low and high are a 32-bit window.
+# A symbol occupies 1/256 of the window. The window is doubled whenever it
+# sits in one half, and a follow bit is saved when it sits in the middle.
+
+TOTAL = 256
+MASK = 0xFFFFFFFF
+HALF = 0x80000000
+QUARTER = 0x40000000
+
+
+def _bytes_of(symbols: list[int]) -> bytes:
+    low = 0
+    high = MASK
+    pending = 0
+    out = bytearray()
+
+    def emit(bit: int) -> None:
+        nonlocal pending
+        out.append(bit)
+        while pending:
+            out.append(bit ^ 1)
+            pending -= 1
+
+    for symbol in symbols:
+        if symbol < 0 or symbol > 255:
+            raise ValueError("bad symbol")
+        span = high - low + 1
+        high = low + (span * (symbol + 1) // TOTAL) - 1
+        low = low + (span * symbol // TOTAL)
+        while True:
+            if high < HALF:
+                emit(0)
+            elif low >= HALF:
+                emit(1)
+                low -= HALF
+                high -= HALF
+            elif low >= QUARTER and high < 3 * QUARTER:
+                pending += 1
+                low -= QUARTER
+                high -= QUARTER
+            else:
+                break
+            low = (low << 1) & MASK
+            high = ((high << 1) | 1) & MASK
+    pending += 1
+    emit(1 if low >= QUARTER else 0)
+    return bytes(out)
+
+
+def _symbols_of(blob: bytes, count: int) -> list[int]:
+    bits = list(blob)
+    index = 0
+
+    def bit() -> int:
+        nonlocal index
+        if index >= len(bits):
+            return 0
+        value = bits[index]
+        index += 1
+        return value
+
+    low = 0
+    high = MASK
+    code = 0
+    for _ in range(32):
+        code = ((code << 1) | bit()) & MASK
+    symbols = []
+    for _ in range(count):
+        span = high - low + 1
+        value = ((code - low + 1) * TOTAL - 1) // span
+        symbols.append(value)
+        high = low + (span * (value + 1) // TOTAL) - 1
+        low = low + (span * value // TOTAL)
+        while True:
+            if high < HALF:
+                pass
+            elif low >= HALF:
+                low -= HALF
+                high -= HALF
+                code -= HALF
+            elif low >= QUARTER and high < 3 * QUARTER:
+                low -= QUARTER
+                high -= QUARTER
+                code -= QUARTER
+            else:
+                break
+            low = (low << 1) & MASK
+            high = ((high << 1) | 1) & MASK
+            code = ((code << 1) | bit()) & MASK
+    return symbols
+
+
+def zigzag(value: int) -> int:
+    return (value << 1) ^ (value >> 63)
+
+
+def unzigzag(value: int) -> int:
+    return (value >> 1) ^ -(value & 1)
+
+
+def encode_deltas(values: list[int]) -> bytes:
+    """Range-code zigzag integers. Each integer is one to five bytes."""
+    symbols: list[int] = []
+    for value in values:
+        number = zigzag(value)
+        while True:
+            piece = number & 0x7F
+            number >>= 7
+            if number:
+                symbols.append(piece | 0x80)
+            else:
+                symbols.append(piece)
+                break
+    return bytes([len(symbols)]) + _bytes_of(symbols) if len(symbols) < 256 else _pack(symbols)
+
+
+def _pack(symbols: list[int]) -> bytes:
+    count = len(symbols).to_bytes(4, "little")
+    return b"\xff" + count + _bytes_of(symbols)
+
+
+def decode_deltas(blob: bytes) -> list[int]:
+    if not blob:
+        raise ValueError("bad range")
+    if blob[0] == 255:
+        if len(blob) < 5:
+            raise ValueError("bad range")
+        count = int.from_bytes(blob[1:5], "little")
+        symbols = _symbols_of(blob[5:], count)
+    else:
+        count = blob[0]
+        symbols = _symbols_of(blob[1:], count)
+    values = []
+    number = 0
+    shift = 0
+    for symbol in symbols:
+        number |= (symbol & 0x7F) << shift
+        if symbol & 0x80:
+            shift += 7
+        else:
+            values.append(unzigzag(number))
+            number = 0
+            shift = 0
+    if shift:
+        raise ValueError("bad range")
+    return values

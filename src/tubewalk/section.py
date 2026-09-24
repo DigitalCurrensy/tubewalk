@@ -87,6 +87,8 @@ def section_score(points: list[tuple[float, float, float]]) -> dict[str, float |
             "width": None,
             "length": None,
             "sections": 0,
+            "segments": 0,
+            "closure": None,
             "rms": None,
         }
     parent = list(range(len(kept)))
@@ -105,6 +107,7 @@ def section_score(points: list[tuple[float, float, float]]) -> dict[str, float |
     groups: dict[int, list[tuple[float, float, float]]] = {}
     for index, point in enumerate(kept):
         groups.setdefault(find(index), []).append(point)
+    segments = len(groups)
     fitted: list[tuple[float, float, float, float]] = []
     for group in groups.values():
         if len(group) < 3:
@@ -144,6 +147,8 @@ def section_score(points: list[tuple[float, float, float]]) -> dict[str, float |
             "width": None,
             "length": None,
             "sections": 0,
+            "segments": segments,
+            "closure": None,
             "rms": None,
         }
     order = sorted(fitted, key=lambda item: (item[0], item[1]))
@@ -163,6 +168,10 @@ def section_score(points: list[tuple[float, float, float]]) -> dict[str, float |
     length = 0.0
     for left, right in zip(chain, chain[1:]):
         length += math.hypot(right[0] - left[0], right[1] - left[1])
+    if len(chain) < 2:
+        chord = 0.0
+    else:
+        chord = math.hypot(chain[-1][0] - chain[0][0], chain[-1][1] - chain[0][1])
     rms = max(item[3] for item in chain)
     return {
         "word": walk(width, length, "return", False),
@@ -171,6 +180,8 @@ def section_score(points: list[tuple[float, float, float]]) -> dict[str, float |
         "width": width,
         "length": length,
         "sections": len(fitted),
+        "segments": segments,
+        "closure": length - chord,
         "rms": rms,
     }
 
@@ -184,8 +195,8 @@ def section_line(scored: dict[str, float | int | str | None]) -> str:
         return f"{value:.10g}"
 
     return (
-        f"{scored['word']} sections={scored['sections']} points={scored['points']} "
-        f"dropped={scored['dropped']} width={show(scored['width'])} "
-        f"length={show(scored['length'])} rms={show(scored['rms'])} "
-        f"echo=return clutter=false"
+        f"{scored['word']} sections={scored['sections']} segments={scored['segments']} "
+        f"points={scored['points']} dropped={scored['dropped']} width={show(scored['width'])} "
+        f"length={show(scored['length'])} closure={show(scored['closure'])} "
+        f"rms={show(scored['rms'])} echo=return clutter=false"
     )
