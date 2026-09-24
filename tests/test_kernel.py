@@ -239,7 +239,7 @@ class PrintedLineTests(unittest.TestCase):
             cwd=repo, env={**__import__("os").environ, "PYTHONPATH": str(repo / "src")},
             capture_output=True, text=True, check=False,
         )
-        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(proc.returncode, 1, proc.stderr)
         self.assertEqual(
             proc.stdout.splitlines()[0],
             "ok width=45 length=30 echo=conduit clutter=false",
@@ -267,7 +267,7 @@ class PrintedLineTests(unittest.TestCase):
                 text=True,
                 check=False,
             )
-        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(proc.returncode, 1, proc.stderr)
         self.assertEqual(
             proc.stdout.splitlines(),
             [
@@ -340,12 +340,12 @@ class ClothAndSectionTests(unittest.TestCase):
         repo = Path(__file__).resolve().parents[1]
         env = {**__import__("os").environ, "PYTHONPATH": str(repo / "src")}
 
-        def run(args: list[str]) -> str:
+        def run(args: list[str], code: int = 0) -> str:
             proc = subprocess.run(
                 [sys.executable, "-m", "tubewalk", *args],
                 cwd=repo, env=env, capture_output=True, text=True, check=False,
             )
-            self.assertEqual(proc.returncode, 0, proc.stderr)
+            self.assertEqual(proc.returncode, code, proc.stderr)
             return proc.stdout.strip()
 
         self.assertEqual(
@@ -353,7 +353,7 @@ class ClothAndSectionTests(unittest.TestCase):
             "ground=8 other=1 class2=8 class1=0 class7=0 class18=1 resolution=1 threshold=0.5 cut=file",
         )
         self.assertEqual(
-            run(["lidar", str(repo / "examples" / "tube.csv")]),
+            run(["lidar", str(repo / "examples" / "tube.csv")], 1),
             "stub points=8 dropped=0 width=40 length=12 echo=return clutter=false",
         )
         self.assertEqual(

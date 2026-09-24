@@ -84,16 +84,21 @@ def score_row(row: dict[str, str | None]) -> str:
     )
 
 
+from .record import finish, line_word
+
+
 def main(argv: list[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
+    as_json = "--json" in args
+    args = [item for item in args if item != "--json"]
     if len(args) == 2 and args[0] == "lidar":
-        return _lidar(Path(args[1]))
+        return _lidar(Path(args[1]), as_json)
     if len(args) == 2 and args[0] == "cloth":
-        return _print_points(Path(args[1]), "cloth")
+        return _print_points(Path(args[1]), "cloth", as_json)
     if len(args) == 2 and args[0] == "section":
-        return _print_points(Path(args[1]), "section")
+        return _print_points(Path(args[1]), "section", as_json)
     if len(args) == 2 and args[0] in {"las", "laz"}:
-        return _las(Path(args[1]))
+        return _las(Path(args[1]), as_json)
     if len(args) != 1:
         print(
             "usage: python -m tubewalk <csv> | lidar <cloud.csv> | cloth <cloud.csv> | section <cloud.csv> | las <file.las> | laz <file.laz>",
@@ -110,6 +115,8 @@ def main(argv: list[str] | None = None) -> int:
                 file=sys.stderr,
             )
             return 2
+        lines: list[str] = []
+        words: list[str] = []
         for row in reader:
             if all(not (value or "").strip() for value in row.values()):
                 continue
@@ -119,20 +126,22 @@ def main(argv: list[str] | None = None) -> int:
             clutter = _bool(_cell(row, "clutter"))
             echo_text = "missing" if echo is None else echo
             if clutter is None:
-                print(
+                lines.append(
                     f"missing width={_show(width)} length={_show(length)} "
                     f"echo={echo_text} clutter=bad"
                 )
+                words.append("missing")
                 continue
             word = walk(width, length, echo, clutter)
-            print(
+            lines.append(
                 f"{word} width={_show(width)} length={_show(length)} "
                 f"echo={echo_text} clutter={'true' if clutter else 'false'}"
             )
-    return 0
+            words.append(word)
+    return finish("tubewalk", "A width is not a signed survey. A .laz point block is not decoded here.", lines, as_json, words)
 
 
-def _lidar(path: Path) -> int:
+def _lidar(path: Path, as_json: bool = False) -> int:
     with path.open(newline="", encoding="utf-8") as handle:
         reader = csv.DictReader(handle)
         names = [name.strip() for name in (reader.fieldnames or [])]
@@ -140,8 +149,8 @@ def _lidar(path: Path) -> int:
             print("csv columns must be x,y,z or x,y,z,return,class", file=sys.stderr)
             return 2
         rows = [{key.strip(): value for key, value in row.items() if key} for row in reader]
-    print(cloud_line(reduce_cloud(rows)))
-    return 0
+    line = cloud_line(reduce_cloud(rows))
+    return finish("tubewalk", "A width is not a signed survey. A .laz point block is not decoded here.", [line], as_json, [line_word(line)])
 
 
 def _rows(path: Path) -> list[tuple[float, float, float]] | None:
@@ -162,26 +171,23 @@ def _rows(path: Path) -> list[tuple[float, float, float]] | None:
         return points
 
 
-def _print_points(path: Path, kind: str) -> int:
+def _print_points(path: Path, kind: str, as_json: bool = False) -> int:
     points = _rows(path)
     if points is None:
         return 2
-    if kind == "cloth":
-        print(cloth_line(points))
-    else:
-        print(section_line(section_score(points)))
-    return 0
+    line = cloth_line(points) if kind == "cloth" else section_line(section_score(points))
+    return finish("tubewalk", "A width is not a signed survey. A .laz point block is not decoded here.", [line], as_json, [line_word(line)])
 
 
-def _las(path: Path) -> int:
+def _las(path: Path, as_json: bool = False) -> int:
     try:
         raw = read_laz(path) if path.suffix.lower() == ".laz" else read_las(path)
     except ValueError as exc:
         print(exc, file=sys.stderr)
         return 2
     kept = [(x, y, z) for x, y, z, _ret, klass in raw if klass != 7]
-    print(section_line(section_score(kept)))
-    return 0
+    line = section_line(section_score(kept))
+    return finish("tubewalk", "A width is not a signed survey. A .laz point block is not decoded here.", [line], as_json, [line_word(line)])
 
 
 if __name__ == "__main__":

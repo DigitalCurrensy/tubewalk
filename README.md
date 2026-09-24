@@ -24,6 +24,33 @@ PYTHONPATH=src python -m tubewalk section examples/tube.csv
 
 The rest of this file is the rule that command prints.
 
+## Record
+
+`--json` prints one object. The process exit code is that object's `exit`. 0 is a pass word (`ok`, `pass`, `scored`, `path`). 1 is a refusal. 2 means the file could not be read. `keep` is false. `absent` is what this output does not contain: a stamp, measured basin months, and the points inside a `.laz` file.
+
+This object is not WaterML and it is not a USGS response.
+
+```json
+{
+  "absent": [
+    "stamp",
+    "measured_months",
+    "laz_points"
+  ],
+  "desk": "tubewalk",
+  "exit": 0,
+  "formula": "A width is not a signed survey. A .laz point block is not decoded here.",
+  "keep": false,
+  "rows": [
+    {
+      "line": "ok sections=2 segments=2 points=8 dropped=0 width=12 length=40 closure=0 offset=0 rms=0 echo=return clutter=false",
+      "word": "ok"
+    }
+  ],
+  "word": "ok"
+}
+```
+
 
 The caller supplies width, length, echo, and clutter.
 

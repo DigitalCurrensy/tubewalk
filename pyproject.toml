@@ -13,3 +13,6 @@ dependencies = ["laspy", "lazrs"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[project.scripts]
+tubewalk = "tubewalk.__main__:main"
