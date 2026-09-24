@@ -151,11 +151,64 @@ def _slope(points: list[tuple[float, float, float]], mask: list[bool], cell: flo
     return mask
 
 
-def cloth_line(points: list[tuple[float, float, float]], resolution: float = 1.0) -> str:
+def classify(points: list[tuple[float, float, float]], resolution: float = 1.0) -> list[int]:
+    """ASPRS class for this pass only. 2 is cloth ground. 7 is a low point. 1 is the rest.
+
+    A low point sits more than the cloth threshold below the median height of
+    the points within one cell. That rule wins even if the inverted cloth
+    pinned itself on the low point. Vegetation and buildings are not labeled.
+    """
     mask = cloth_mask(points, resolution=resolution)
-    ground = sum(1 for flag in mask if flag)
-    other = len(mask) - ground
+    classes: list[int] = []
+    reach = resolution * math.sqrt(2.0) + 1e-9
+    for index, point in enumerate(points):
+        if not all(math.isfinite(value) for value in point):
+            classes.append(0)
+            continue
+        nearby = [
+            other[2]
+            for other_index, other in enumerate(points)
+            if other_index != index
+            and all(math.isfinite(value) for value in other)
+            and math.hypot(point[0] - other[0], point[1] - other[1]) <= reach
+        ]
+        if nearby:
+            nearby.sort()
+            median = nearby[len(nearby) // 2]
+            if point[2] < median - THRESHOLD:
+                classes.append(7)
+                continue
+        classes.append(2 if mask[index] else 1)
+    return classes
+    ground = [point for point, flag in zip(points, mask) if flag]
+    classes: list[int] = []
+    for point, flag in zip(points, mask):
+        if not all(math.isfinite(value) for value in point):
+            classes.append(0)
+            continue
+        if flag:
+            classes.append(2)
+            continue
+        nearest_z = None
+        nearest = math.inf
+        for other in ground:
+            flat = math.hypot(point[0] - other[0], point[1] - other[1])
+            if flat < nearest:
+                nearest = flat
+                nearest_z = other[2]
+        if nearest_z is not None and point[2] < nearest_z - THRESHOLD:
+            classes.append(7)
+        else:
+            classes.append(1)
+    return classes
+
+
+def cloth_line(points: list[tuple[float, float, float]], resolution: float = 1.0) -> str:
+    classes = classify(points, resolution)
+    ground = sum(1 for value in classes if value == 2)
+    low = sum(1 for value in classes if value == 7)
+    other = len(classes) - ground - low
     return (
-        f"ground={ground} other={other} class2={ground} class1={other} "
+        f"ground={ground} other={other + low} class2={ground} class1={other} class7={low} "
         f"resolution={resolution:g} threshold={THRESHOLD:g}"
     )

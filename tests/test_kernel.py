@@ -348,7 +348,7 @@ class ClothAndSectionTests(unittest.TestCase):
             self.assertEqual(proc.returncode, 0, proc.stderr)
             return proc.stdout.strip()
 
-        self.assertEqual(run(["cloth", str(repo / "examples" / "ground.csv")]), "ground=8 other=1 class2=8 class1=1 resolution=1 threshold=0.5")
+        self.assertEqual(run(["cloth", str(repo / "examples" / "ground.csv")]), "ground=8 other=1 class2=8 class1=1 class7=0 resolution=1 threshold=0.5")
         self.assertEqual(
             run(["lidar", str(repo / "examples" / "tube.csv")]),
             "stub points=8 dropped=0 width=40 length=12 echo=return clutter=false",
@@ -473,6 +473,13 @@ class ClothAndSectionTests(unittest.TestCase):
 
         symbols = [0, 1, 2, 255, 3, 3, 3, 40]
         self.assertEqual(decode_context(encode_context(symbols)), symbols)
+        from tubewalk.range_coder import decode_bits, encode_bits
+        from tubewalk.cloth import classify
+
+        self.assertEqual(decode_bits(encode_bits([0, 1, -1, 2, 40, -30, 1000, 0])), [0, 1, -1, 2, 40, -30, 1000, 0])
+        pit = [(x, y, -5.0 if (x, y) == (1, 1) else 0.0) for x in range(3) for y in range(3)]
+        classes = classify(pit)
+        self.assertEqual(classes[pit.index((1, 1, -5.0))], 7)
 
     def test_las_14_format_6_round_trip(self) -> None:
         import struct

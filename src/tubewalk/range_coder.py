@@ -280,3 +280,165 @@ def decode_context(blob: bytes) -> list[int]:
         symbols.append(symbol)
         context = symbol >> 5
     return symbols
+
+
+def encode_bits(values: list[int]) -> bytes:
+    """Per-bit range code. The context is the previous residual's magnitude class.
+
+    Class is min(7, bit length). Each bit has its own zero-count and one-count,
+    starting at 1. A value is a zero flag, five length bits, a sign, then the
+    magnitude bits below the leading 1. LASzip uses this family on the bits of
+    a predicted residual. This function does not decode a .laz file.
+    """
+    if len(values) > 255:
+        raise ValueError("bad symbol")
+    zeros = [1] * (8 * 40)
+    ones = [1] * (8 * 40)
+    low = 0
+    high = MASK
+    pending = 0
+    out = bytearray()
+    previous = 0
+
+    def emit(bit: int) -> None:
+        nonlocal pending
+        out.append(bit)
+        while pending:
+            out.append(bit ^ 1)
+            pending -= 1
+
+    def renorm() -> None:
+        nonlocal low, high, pending
+        while True:
+            if high < HALF:
+                emit(0)
+            elif low >= HALF:
+                emit(1)
+                low -= HALF
+                high -= HALF
+            elif low >= QUARTER and high < 3 * QUARTER:
+                pending += 1
+                low -= QUARTER
+                high -= QUARTER
+            else:
+                break
+            low = (low << 1) & MASK
+            high = ((high << 1) | 1) & MASK
+
+    def put(bit: int, slot: int) -> None:
+        nonlocal low, high
+        context = previous * 40 + slot
+        total = zeros[context] + ones[context]
+        span = high - low + 1
+        split = low + (span * zeros[context] // total)
+        if bit == 0:
+            high = split - 1
+            zeros[context] += 1
+        else:
+            low = split
+            ones[context] += 1
+        if low > high:
+            raise ValueError("bad range")
+        renorm()
+
+    for value in values:
+        if isinstance(value, bool) or not isinstance(value, int) or abs(value) > 2**30:
+            raise ValueError("bad symbol")
+        magnitude = abs(value)
+        length = magnitude.bit_length()
+        if length == 0:
+            put(0, 0)
+            previous = 0
+            continue
+        put(1, 0)
+        for shift in range(5):
+            put((length >> shift) & 1, 1 + shift)
+        put(1 if value < 0 else 0, 6)
+        for shift in range(length - 1):
+            put((magnitude >> shift) & 1, 7 + shift)
+        previous = min(7, length)
+    pending += 1
+    emit(1 if low >= QUARTER else 0)
+    return bytes([len(values)]) + bytes(out)
+
+
+def decode_bits(blob: bytes) -> list[int]:
+    if not blob:
+        raise ValueError("bad range")
+    count = blob[0]
+    packed = list(blob[1:])
+    index = 0
+
+    def next_bit() -> int:
+        nonlocal index
+        if index >= len(packed):
+            return 0
+        value = packed[index]
+        index += 1
+        return value
+
+    zeros = [1] * (8 * 40)
+    ones = [1] * (8 * 40)
+    low = 0
+    high = MASK
+    code = 0
+    for _ in range(32):
+        code = ((code << 1) | next_bit()) & MASK
+    previous = 0
+
+    def renorm() -> None:
+        nonlocal low, high, code
+        while True:
+            if high < HALF:
+                pass
+            elif low >= HALF:
+                low -= HALF
+                high -= HALF
+                code -= HALF
+            elif low >= QUARTER and high < 3 * QUARTER:
+                low -= QUARTER
+                high -= QUARTER
+                code -= QUARTER
+            else:
+                break
+            low = (low << 1) & MASK
+            high = ((high << 1) | 1) & MASK
+            code = ((code << 1) | next_bit()) & MASK
+
+    def take(slot: int) -> int:
+        nonlocal low, high
+        context = previous * 40 + slot
+        total = zeros[context] + ones[context]
+        span = high - low + 1
+        split = low + (span * zeros[context] // total)
+        if code < split:
+            high = split - 1
+            zeros[context] += 1
+            bit = 0
+        else:
+            low = split
+            ones[context] += 1
+            bit = 1
+        renorm()
+        return bit
+
+    values = []
+    for _ in range(count):
+        if take(0) == 0:
+            values.append(0)
+            previous = 0
+            continue
+        length = 0
+        for shift in range(5):
+            length |= take(1 + shift) << shift
+        if length == 0 or length > 31:
+            raise ValueError("bad range")
+        sign = take(6)
+        magnitude = 1 << (length - 1)
+        for shift in range(length - 1):
+            if take(7 + shift):
+                magnitude |= 1 << shift
+        values.append(-magnitude if sign else magnitude)
+        previous = min(7, length)
+    return values
+

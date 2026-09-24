@@ -36,10 +36,10 @@ ok points=4 dropped=1 width=12 length=40 echo=return clutter=false
 
 ## Cloth
 
-`python -m tubewalk cloth examples/ground.csv` is the cloth simulation filter of Zhang and others (2016). The cloud is inverted, so the low ground becomes the high surface. A grid falls with the Verlet step below. A particle that passes the cell height sticks. A free neighbor is pulled to that height. A point within 0.5 of the cloth is ground. The slope pass then keeps a point the cloth missed when it is within one cell of a ground point and within 1 m of that height. The spike at `(1, 1, 10)` is not within 1 m, so it stays other. ASPRS class 2 is ground. Class 1 is unclassified. This pass assigns those two and nothing else. Vegetation, buildings, and class 7 are not labeled here:
+`python -m tubewalk cloth examples/ground.csv` is the cloth simulation filter of Zhang and others (2016). The cloud is inverted, so the low ground becomes the high surface. A grid falls with the Verlet step below. A particle that passes the cell height sticks. A free neighbor is pulled to that height. A point within 0.5 of the cloth is ground. The slope pass then keeps a point the cloth missed when it is within one cell of a ground point and within 1 m of that height. The spike at `(1, 1, 10)` is above the ground, so it is class 1. A point more than 0.5 m below the median of the points within one cell is class 7, even when the inverted cloth pins on that low point. Vegetation and buildings are not labeled:
 
 ```
-ground=8 other=1 class2=8 class1=1 resolution=1 threshold=0.5
+ground=8 other=1 class2=8 class1=1 class7=0 resolution=1 threshold=0.5
 ```
 
 ## Centerline
@@ -69,7 +69,7 @@ LAZ is LAS after LASzip. The compressor does not store the points raw. It predic
 
 ## Range coder
 
-`range_coder` also has an order-1 model. The context is the previous byte's high 3 bits, eight count tables, each symbol starting at 1. LASzip uses a context model of the same family on each bit of the residual, and the context is the magnitude class of the previous residual. This file does that on whole bytes. `decode_context(encode_context(symbols))` returns the same bytes. It still does not decode a `.laz` file.
+`encode_bits` is the per-bit model. The context is `min(7, bit length)` of the previous residual. Each bit has its own count of zeros and of ones, starting at 1. A value is a zero flag, five length bits, a sign bit, then the magnitude bits under the leading 1. `decode_bits(encode_bits(values))` returns the same integers. LASzip's chunk index and its exact context tables are not in this file. It still does not decode a `.laz` file.
 
 ## Worked rows
 
