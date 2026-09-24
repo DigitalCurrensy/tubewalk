@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "tubewalk"
 version = "0.1.0"
-description = "Ground, section diameter, LAS, and a LAZ chunk table. Not the points inside a .laz file."
+description = "Ground, section diameter, and LAS 1.4 formats 0 through 10. Reads a LAZ chunk table. Does not decode the points inside a .laz file."
 requires-python = ">=3.11"
 license = { text = "Apache-2.0" }
 authors = [{ name = "Digital Currensy Inc." }]

@@ -1,0 +1,8 @@
+cff-version: 1.2.0
+message: If you use this library, cite the repository.
+title: tubewalk
+abstract: Ground class, section diameter, and LAS 1.4 point formats 0 through 10. A LAZ chunk table is read. Points inside a .laz file are not decoded here.
+authors:
+  - name: Digital Currensy Inc.
+license: Apache-2.0
+repository-code: https://github.com/DigitalCurrensy/tubewalk

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""LAS 1.2 formats 0 and 1, and LAS 1.4 formats 6 and 7. LAZ is separate."""
+"""LAS 1.2 formats 0 to 3, and LAS 1.4 formats 0 to 10. LAZ points are separate."""
 
 from __future__ import annotations
 
@@ -20,23 +20,29 @@ import struct
 from pathlib import Path
 
 # ASPRS LAS 1.2 public header is 227 bytes. LAS 1.4 is 375 bytes.
-# Format 0 is 20 bytes. Format 1 adds GPS time. Format 6 is 30 bytes.
-# Format 7 adds three color shorts. The 1.4 point count is the uint64 at byte 247.
+# Minimum point-record lengths are LAS 1.4 R15. A longer record is extra
+# bytes or a waveform packet. Those bytes are not read.
+# Formats 0-5 keep the legacy record: return is 3 bits, class is 5 bits.
+# Formats 6-10 are the point-14 record: return is 4 bits, class is a byte.
+LEGACY = {0: 20, 1: 28, 2: 26, 3: 34, 4: 57, 5: 63}
+POINT14 = {6: 30, 7: 36, 8: 38, 9: 59, 10: 67}
+RECORD = {**LEGACY, **POINT14}
 HEADER_12 = 227
 HEADER_14 = 375
-RECORD = {0: 20, 1: 28, 6: 30, 7: 36}
 
 
 def read_las(path: Path) -> list[tuple[float, float, float, int, int]]:
     """Return x, y, z, return number, classification.
 
     xyz = integer * scale + offset, from the header doubles at bytes 131 and 155.
-    Version 1.2, formats 0 and 1: the return number is the low 3 bits of byte 14
-    and the class is the low 5 bits of byte 15.
-    Version 1.4, formats 6 and 7: the return number is the low 4 bits of the
-    uint16 at byte 14, and the class is the whole byte at offset 16.
-    The 1.4 count is the uint64 at byte 247. A file outside those two versions
-    raises ValueError. Variable-length records are skipped, not interpreted.
+    Version 1.2 accepts formats 0, 1, 2, and 3. Version 1.4 accepts formats
+    0 through 10. Formats 0 to 5: the return number is the low 3 bits of
+    byte 14 and the class is the low 5 bits of byte 15. Formats 6 to 10:
+    the return number is the low 4 bits of the uint16 at byte 14, and the
+    class is the whole byte at offset 16. The 1.4 count is the uint64 at
+    byte 247. A file outside those two versions raises ValueError.
+    A waveform packet, RGB, and NIR are not read. Variable-length records
+    are skipped, not interpreted.
     """
     blob = path.read_bytes()
     if len(blob) < HEADER_12 or blob[0:4] != b"LASF":
@@ -44,17 +50,17 @@ def read_las(path: Path) -> list[tuple[float, float, float, int, int]]:
     major, minor = blob[24], blob[25]
     header_size, offset, _vlr, fmt, record_length, legacy = struct.unpack_from("<HIIBHI", blob, 94)
     if (major, minor) == (1, 2):
-        if header_size < HEADER_12 or fmt not in (0, 1) or record_length < RECORD[fmt]:
+        if header_size < HEADER_12 or fmt not in (0, 1, 2, 3) or record_length < RECORD[fmt]:
             raise ValueError("not this las")
         count = legacy
-        modern = False
+        point14 = False
     elif (major, minor) == (1, 4):
-        if header_size < HEADER_14 or len(blob) < HEADER_14 or fmt not in (6, 7):
+        if header_size < HEADER_14 or len(blob) < HEADER_14 or fmt not in RECORD:
             raise ValueError("not this las")
         if record_length < RECORD[fmt]:
             raise ValueError("not this las")
         count = struct.unpack_from("<Q", blob, 247)[0]
-        modern = True
+        point14 = fmt >= 6
     else:
         raise ValueError("not las 1.2 or 1.4")
     scale = struct.unpack_from("<3d", blob, 131)
@@ -66,7 +72,7 @@ def read_las(path: Path) -> list[tuple[float, float, float, int, int]]:
         if start + width > len(blob):
             raise ValueError("short las")
         x, y, z = struct.unpack_from("<3i", blob, start)
-        if modern:
+        if point14:
             flags = struct.unpack_from("<H", blob, start + 14)[0]
             ret = flags & 0b1111
             klass = blob[start + 16]

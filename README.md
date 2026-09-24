@@ -4,7 +4,7 @@
 
 For a lidar technician who has a point cloud, or a LAS file, and wants a width and a length.
 
-The cloth marks ground. The section fits a diameter along the path. LAS 1.2 and LAS 1.4 are read here. A LAZ file's chunk table is read here. The points inside a `.laz` file are not decoded here.
+The cloth marks ground. The section fits a diameter along the path. LAS 1.2 formats 0 to 3 and LAS 1.4 formats 0 to 10 are read here, through the XYZ, return, and class prefix. A LAZ file's chunk table is read here. The points inside a `.laz` file are not decoded here. A waveform packet is not a surface.
 
 A width is not a signed survey.
 
@@ -117,7 +117,25 @@ LAZ is LAS after LASzip. The compressor does not store the points raw. It predic
 
 ## LAS
 
-`python -m tubewalk las file.las` reads ASPRS LAS 1.2 formats 0 and 1, and LAS 1.4 formats 6 and 7. The file starts with `LASF`. Version bytes are at 24 and 25. Scales are three doubles at byte 131. Offsets are three doubles at byte 155. A coordinate is `integer * scale + offset`. In 1.2 the return number is the low 3 bits of byte 14 and the class is the low 5 bits of byte 15. In 1.4 format 6 the return number is the low 4 bits of the uint16 at byte 14, the class is the byte at offset 16, and the point count is the uint64 at byte 247. Class 7 is dropped, then the same circle is fit. Anything else raises `not a las`, `not las 1.2 or 1.4`, or `not this las`.
+`python -m tubewalk las file.las` reads a LAS file that starts with `LASF`. Version bytes are at 24 and 25. Scales are three doubles at byte 131. Offsets are three doubles at byte 155. A coordinate is `integer * scale + offset`. The point count in 1.2 is the uint32 at byte 107. The point count in 1.4 is the uint64 at byte 247.
+
+LAS 1.4 R15 defines point formats 0 through 10. Formats 6 to 10 are the ones the specification prefers. This reader accepts 0 through 10 on a 1.4 file, and 0 through 3 on a 1.2 file. It reads the prefix below and stops. RGB, NIR, GPS time, and the waveform packet are not decoded.
+
+| Format | Minimum bytes | Record | Return | Class | What is not read |
+| --- | --- | --- | --- | --- | --- |
+| 0 | 20 | legacy | 3 bits | 5 bits | |
+| 1 | 28 | legacy | 3 bits | 5 bits | GPS time |
+| 2 | 26 | legacy | 3 bits | 5 bits | RGB |
+| 3 | 34 | legacy | 3 bits | 5 bits | GPS time, RGB |
+| 4 | 57 | legacy | 3 bits | 5 bits | GPS time, waveform |
+| 5 | 63 | legacy | 3 bits | 5 bits | GPS time, RGB, waveform |
+| 6 | 30 | point 14 | 4 bits | full byte | GPS time |
+| 7 | 36 | point 14 | 4 bits | full byte | GPS time, RGB |
+| 8 | 38 | point 14 | 4 bits | full byte | GPS time, RGB, NIR |
+| 9 | 59 | point 14 | 4 bits | full byte | GPS time, waveform |
+| 10 | 67 | point 14 | 4 bits | full byte | GPS time, RGB, NIR, waveform |
+
+A legacy return of 9 does not survive. Three bits keep 1. A format-10 return of 9 stays 9, and class 18 stays 18. A record shorter than the minimum raises `not this las`. A longer record is extra bytes. Those bytes are not a point. Class 7 is dropped, then the same circle is fit. Anything else raises `not a las`, `not las 1.2 or 1.4`, or `not this las`.
 
 ## Range coder
 
@@ -134,8 +152,8 @@ LAS 1.4 formats 6 to 10 name classes 0 through 22. `asprs_name(2)` is `ground`. 
 - Treat ok as a keep.
 - Treat GRAIL as this catalog.
 - Treat a radar line as a ceiling.
-- Read LAS 1.4, or a point format other than 0 or 1.
-- Decode a `.laz` file with this range coder. `laz` calls lazrs. The coder here round-trips signed deltas only.
+- Decode a waveform packet. Formats 4, 5, 9, and 10 are read only through the XYZ, return, and class prefix.
+- Decode the points inside a `.laz` file with this range coder. `laz` calls lazrs. The coder here round-trips signed deltas only.
 - Fit a centerline to a cloud whose stations have fewer than three points.
 
 ## Run

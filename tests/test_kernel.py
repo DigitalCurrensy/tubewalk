@@ -610,6 +610,64 @@ class ClothAndSectionTests(unittest.TestCase):
             "ok sections=2 segments=2 points=8 dropped=0 width=12 length=40 closure=0 offset=0 rms=0 echo=return clutter=false",
         )
 
+    def test_las_14_formats_keep_their_record_rules(self) -> None:
+        import struct
+        import tempfile
+
+        from tubewalk.las import POINT14, RECORD, read_las
+
+        self.assertEqual(
+            [RECORD[fmt] for fmt in range(11)],
+            [20, 28, 26, 34, 57, 63, 30, 36, 38, 59, 67],
+        )
+        self.assertEqual(POINT14[10], 67)
+
+        def write(fmt: int, ret: int, klass: int, minor: int = 4) -> Path:
+            length = RECORD[fmt]
+            header_size = 375 if minor == 4 else 227
+            header = bytearray(header_size)
+            header[0:4] = b"LASF"
+            header[24] = 1
+            header[25] = minor
+            struct.pack_into("<H", header, 94, header_size)
+            struct.pack_into("<I", header, 96, header_size)
+            header[104] = fmt
+            struct.pack_into("<H", header, 105, length)
+            struct.pack_into("<3d", header, 131, 0.001, 0.001, 0.001)
+            point = bytearray(length)
+            struct.pack_into("<3i", point, 0, 1000, 0, 0)
+            if fmt >= 6:
+                struct.pack_into("<H", point, 14, ret)
+                point[16] = klass
+                if minor == 4:
+                    struct.pack_into("<Q", header, 247, 1)
+            else:
+                point[14] = ret
+                point[15] = klass
+                if minor == 4:
+                    struct.pack_into("<Q", header, 247, 1)
+                else:
+                    struct.pack_into("<I", header, 107, 1)
+            path = Path(folder) / f"f{fmt}.las"
+            path.write_bytes(bytes(header) + bytes(point))
+            return path
+
+        with tempfile.TemporaryDirectory() as raw:
+            folder = Path(raw)
+            legacy = read_las(write(5, 0b1001, 2))
+            self.assertEqual(legacy, [(1.0, 0.0, 0.0, 1, 2)])
+            modern = read_las(write(10, 9, 18))
+            self.assertEqual(modern, [(1.0, 0.0, 0.0, 9, 18)])
+            bad_version = write(6, 1, 2, minor=2)
+            with self.assertRaises(ValueError):
+                read_las(bad_version)
+            short = write(8, 1, 2)
+            blob = bytearray(short.read_bytes())
+            struct.pack_into("<H", blob, 105, 37)
+            short.write_bytes(bytes(blob))
+            with self.assertRaises(ValueError):
+                read_las(short)
+
 
 def subprocess_run(path: Path, repo: Path) -> str:
     import subprocess
