@@ -266,3 +266,67 @@ def decode_chunks(blob: bytes, returns: list[list[tuple[int, int]]]) -> list[lis
             raise ValueError("bad class")
         decoded.append(decode_point14(payload, pulse))
     return decoded
+
+
+def encode_laz_index(chunks: list[list[tuple[int, int, int]]]) -> bytes:
+    """Published chunk-table layout, with the table stored raw.
+
+    Byte 0 is a little-endian int64, the position of the table in this block.
+    The table is version 0, then the chunk count, then two signed deltas per
+    chunk: point count, then payload bytes. The first delta is the value
+    itself because the previous value is 0. Later deltas are this chunk minus
+    the previous chunk. LAZ compresses those integers. This file does not.
+    """
+    import struct
+
+    if not chunks or len(chunks) > 65535:
+        raise ValueError("bad class")
+    payloads = [encode_point14(chunk) for chunk in chunks]
+    table_at = 8 + sum(len(payload) for payload in payloads)
+    out = bytearray(struct.pack("<q", table_at))
+    for payload in payloads:
+        out += payload
+    out += struct.pack("<II", 0, len(chunks))
+    previous_count = 0
+    previous_size = 0
+    for chunk, payload in zip(chunks, payloads):
+        out += struct.pack("<ii", len(chunk) - previous_count, len(payload) - previous_size)
+        previous_count = len(chunk)
+        previous_size = len(payload)
+    return bytes(out)
+
+
+def decode_laz_index(blob: bytes, returns: list[list[tuple[int, int]]]) -> list[list[int]]:
+    import struct
+
+    if len(blob) < 16:
+        raise ValueError("bad class")
+    table_at = struct.unpack_from("<q", blob, 0)[0]
+    if table_at < 8 or table_at + 8 > len(blob):
+        raise ValueError("bad class")
+    version, count = struct.unpack_from("<II", blob, table_at)
+    if version != 0 or count != len(returns):
+        raise ValueError("bad class")
+    if table_at + 8 + 8 * count != len(blob):
+        raise ValueError("bad class")
+    previous_count = 0
+    previous_size = 0
+    entries: list[tuple[int, int]] = []
+    for index in range(count):
+        d_count, d_size = struct.unpack_from("<ii", blob, table_at + 8 + 8 * index)
+        previous_count += d_count
+        previous_size += d_size
+        if previous_count <= 0 or previous_size <= 0:
+            raise ValueError("bad class")
+        entries.append((previous_count, previous_size))
+    offset = 8
+    decoded: list[list[int]] = []
+    for (npoints, size), pulse in zip(entries, returns):
+        payload = blob[offset : offset + size]
+        offset += size
+        if len(payload) != size or payload[0] != npoints:
+            raise ValueError("bad class")
+        decoded.append(decode_point14(payload, pulse))
+    if offset != table_at:
+        raise ValueError("bad class")
+    return decoded

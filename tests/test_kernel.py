@@ -514,6 +514,16 @@ class ClothAndSectionTests(unittest.TestCase):
         two = [(7, 2, 2), (18, 1, 1)]
         pulses = [[(p[1], p[2]) for p in one], [(p[1], p[2]) for p in two]]
         self.assertEqual(decode_chunks(encode_chunks([one, two]), pulses), [[2, 2], [7, 18]])
+        import struct
+        from tubewalk.asprs import decode_laz_index, encode_laz_index
+
+        blob = encode_laz_index([one, two])
+        table_at = struct.unpack_from("<q", blob, 0)[0]
+        version, count = struct.unpack_from("<II", blob, table_at)
+        first_count, first_size = struct.unpack_from("<ii", blob, table_at + 8)
+        self.assertEqual((version, count, first_count), (0, 2, 2))
+        self.assertGreater(first_size, 0)
+        self.assertEqual(decode_laz_index(blob, pulses), [[2, 2], [7, 18]])
 
     def test_las_14_format_6_round_trip(self) -> None:
         import struct
