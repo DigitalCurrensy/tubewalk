@@ -350,7 +350,7 @@ class ClothAndSectionTests(unittest.TestCase):
 
         self.assertEqual(
             run(["cloth", str(repo / "examples" / "ground.csv")]),
-            "ground=8 other=1 class2=8 class1=0 class7=0 class18=1 resolution=1 threshold=0.5",
+            "ground=8 other=1 class2=8 class1=0 class7=0 class18=1 resolution=1 threshold=0.5 cut=file",
         )
         self.assertEqual(
             run(["lidar", str(repo / "examples" / "tube.csv")]),
@@ -505,6 +505,15 @@ class ClothAndSectionTests(unittest.TestCase):
         points = [(2, 1, 1), (2, 1, 1), (7, 2, 2), (18, 1, 1)]
         returns = [(point[1], point[2]) for point in points]
         self.assertEqual(decode_point14(encode_point14(points), returns), [2, 2, 7, 18])
+        from tubewalk.asprs import SEED, decode_chunks, encode_chunks
+
+        self.assertEqual(SEED, 1)
+        band = [(0, 0, 0.0), (1, 0, 0.0), (0, 1, 0.0), (1, 1, 1.2)]
+        self.assertEqual(classify(band)[-1], 4)
+        one = [(2, 1, 1), (2, 1, 1)]
+        two = [(7, 2, 2), (18, 1, 1)]
+        pulses = [[(p[1], p[2]) for p in one], [(p[1], p[2]) for p in two]]
+        self.assertEqual(decode_chunks(encode_chunks([one, two]), pulses), [[2, 2], [7, 18]])
 
     def test_las_14_format_6_round_trip(self) -> None:
         import struct

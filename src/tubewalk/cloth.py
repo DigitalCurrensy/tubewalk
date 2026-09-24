@@ -178,8 +178,18 @@ def classify(points: list[tuple[float, float, float]], resolution: float = 1.0) 
             if point[2] < median - THRESHOLD:
                 classes.append(7)
                 continue
-            if point[2] > median + THRESHOLD:
+            height = point[2] - median
+            if height > 5:
                 classes.append(18)
+                continue
+            if height > 2:
+                classes.append(5)
+                continue
+            if height > THRESHOLD:
+                classes.append(4)
+                continue
+            if height > 0 and not mask[index]:
+                classes.append(3)
                 continue
         classes.append(2 if mask[index] else 1)
     return classes
@@ -193,5 +203,5 @@ def cloth_line(points: list[tuple[float, float, float]], resolution: float = 1.0
     rest = sum(1 for value in classes if value == 1)
     return (
         f"ground={ground} other={len(classes) - ground} class2={ground} class1={rest} "
-        f"class7={low} class18={high} resolution={resolution:g} threshold={THRESHOLD:g}"
+        f"class7={low} class18={high} resolution={resolution:g} threshold={THRESHOLD:g} cut=file"
     )

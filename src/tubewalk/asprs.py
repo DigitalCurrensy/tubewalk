@@ -59,6 +59,7 @@ OVERLAP = 8
 _MASK = 0xFFFFFFFF
 _HALF = 0x80000000
 _QUARTER = 0x40000000
+SEED = 1
 
 
 def asprs_name(code: int) -> str:
@@ -103,8 +104,8 @@ def encode_point14(points: list[tuple[int, int, int]]) -> bytes:
     for point in points:
         asprs_name(point[0])
         point14_instance(*point)
-    counts = [[1] * 256 for _ in range(64)]
-    totals = [256] * 64
+    counts = [[SEED] * 256 for _ in range(64)]
+    totals = [SEED * 256] * 64
     low = 0
     high = _MASK
     pending = 0
@@ -176,8 +177,8 @@ def decode_point14(blob: bytes, returns: list[tuple[int, int]]) -> list[int]:
         index += 1
         return value
 
-    counts = [[1] * 256 for _ in range(64)]
-    totals = [256] * 64
+    counts = [[SEED] * 256 for _ in range(64)]
+    totals = [SEED * 256] * 64
     low = 0
     high = _MASK
     code = 0
@@ -218,3 +219,50 @@ def decode_point14(blob: bytes, returns: list[tuple[int, int]]) -> list[int]:
             code = ((code << 1) | bit()) & _MASK
         classes.append(symbol)
     return classes
+
+
+def encode_chunks(chunks: list[list[tuple[int, int, int]]]) -> bytes:
+    """Our chunk index. Magic, count, then offset and point count for each chunk.
+
+    This is not the LAZ chunk table. A .laz file still goes through lazrs.
+    """
+    import struct
+
+    if not chunks or len(chunks) > 65535:
+        raise ValueError("bad class")
+    payloads = [encode_point14(chunk) for chunk in chunks]
+    header = 6 + 6 * len(chunks)
+    out = bytearray(b"CHK1")
+    out += struct.pack("<H", len(chunks))
+    offset = header
+    for chunk, payload in zip(chunks, payloads):
+        out += struct.pack("<IH", offset, len(chunk))
+        offset += len(payload)
+    for payload in payloads:
+        out += payload
+    return bytes(out)
+
+
+def decode_chunks(blob: bytes, returns: list[list[tuple[int, int]]]) -> list[list[int]]:
+    import struct
+
+    if len(blob) < 6 or blob[:4] != b"CHK1":
+        raise ValueError("bad class")
+    count = struct.unpack_from("<H", blob, 4)[0]
+    if count != len(returns):
+        raise ValueError("bad class")
+    entries: list[tuple[int, int]] = []
+    pos = 6
+    for _ in range(count):
+        if pos + 6 > len(blob):
+            raise ValueError("bad class")
+        entries.append(struct.unpack_from("<IH", blob, pos))
+        pos += 6
+    ends = [item[0] for item in entries[1:]] + [len(blob)]
+    decoded: list[list[int]] = []
+    for (offset, npoints), end, pulse in zip(entries, ends, returns):
+        payload = blob[offset:end]
+        if not payload or payload[0] != npoints:
+            raise ValueError("bad class")
+        decoded.append(decode_point14(payload, pulse))
+    return decoded
